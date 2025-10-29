@@ -325,36 +325,39 @@ export default function Kalori() {
     }
     
     // 2. Protein Analizi
-    if (meal.protein > 35) {
-      tips.push(`🥩 Mükemmel Protein (${meal.protein}g)\nYüksek protein içeriği kas gelişimi, tokluk hissi ve metabolizma hızı için harika. Spor sonrası ideal bir öğün. Bu şekilde devam edin!`);
-    } else if (meal.protein >= 25) {
-      tips.push(`💪 İyi Protein (${meal.protein}g)\nProtein miktarı yeterli seviyede. Kas korunumu ve tokluk için iyi. Dengeli beslenmeye devam edin.`);
-    } else if (meal.protein >= 15) {
-      tips.push(`🔶 Orta Protein (${meal.protein}g)\nProtein miktarı orta seviyede. Bir sonraki öğünde protein kaynaklarını artırmayı düşünün (tavuk, balık, yumurta, baklagiller).`);
+    const protein = meal.protein ?? 0;
+    if (protein > 35) {
+      tips.push(`🥩 Mükemmel Protein (${protein}g)\nYüksek protein içeriği kas gelişimi, tokluk hissi ve metabolizma hızı için harika. Spor sonrası ideal bir öğün. Bu şekilde devam edin!`);
+    } else if (protein >= 25) {
+      tips.push(`💪 İyi Protein (${protein}g)\nProtein miktarı yeterli seviyede. Kas korunumu ve tokluk için iyi. Dengeli beslenmeye devam edin.`);
+    } else if (protein >= 15) {
+      tips.push(`🔶 Orta Protein (${protein}g)\nProtein miktarı orta seviyede. Bir sonraki öğünde protein kaynaklarını artırmayı düşünün (tavuk, balık, yumurta, baklagiller).`);
     } else {
-      tips.push(`⚠️ Düşük Protein (${meal.protein}g)\nProtein miktarı yetersiz. Tokluk hissi kısa sürebilir ve kas kaybı riski var. Mutlaka protein ekleyin: Yumurta, peynir, tavuk, balık, mercimek gibi.`);
+      tips.push(`⚠️ Düşük Protein (${protein}g)\nProtein miktarı yetersiz. Tokluk hissi kısa sürebilir ve kas kaybı riski var. Mutlaka protein ekleyin: Yumurta, peynir, tavuk, balık, mercimek gibi.`);
     }
     
     // 3. Karbonhidrat Analizi
-    if (meal.carbs > 100) {
+    const carbs = meal.carbs ?? 0;
+    if (carbs > 100) {
       if (meal.type === 'Akşam') {
-        tips.push(`🍞 Yüksek Karbonhidrat - Akşam (${meal.carbs}g)\nAkşam saatlerinde yüksek karbonhidrat uyku kalitenizi etkileyebilir. Akşam öğünlerini daha hafif tutmayı deneyin. Protein ağırlıklı seçimler tercih edin.`);
+        tips.push(`🍞 Yüksek Karbonhidrat - Akşam (${carbs}g)\nAkşam saatlerinde yüksek karbonhidrat uyku kalitenizi etkileyebilir. Akşam öğünlerini daha hafif tutmayı deneyin. Protein ağırlıklı seçimler tercih edin.`);
       } else {
-        tips.push(`⚡ Yüksek Karbonhidrat (${meal.carbs}g)\nYüksek enerji sağlayan bir öğün. Spor öncesi veya yoğun aktivite günlerinde uygun. Hareketsiz günlerde azaltılabilir.`);
+        tips.push(`⚡ Yüksek Karbonhidrat (${carbs}g)\nYüksek enerji sağlayan bir öğün. Spor öncesi veya yoğun aktivite günlerinde uygun. Hareketsiz günlerde azaltılabilir.`);
       }
-    } else if (meal.carbs > 50) {
-      tips.push(`🌾 Dengeli Karbonhidrat (${meal.carbs}g)\nKarbonhidrat miktarı dengeli. Enerji seviyenizi stabil tutar. Tam tahıl, sebze gibi kompleks karbonhidratlar tercih edin.`);
+    } else if (carbs > 50) {
+      tips.push(`🌾 Dengeli Karbonhidrat (${carbs}g)\nKarbonhidrat miktarı dengeli. Enerji seviyenizi stabil tutar. Tam tahıl, sebze gibi kompleks karbonhidratlar tercih edin.`);
     } else {
-      tips.push(`🥒 Düşük Karbonhidrat (${meal.carbs}g)\nDüşük karbonhidratlı bir öğün. Yağ yakma için iyi ama enerji seviyeniz düşebilir. Yoğun aktivite öncesi karbonhidrat ekleyin.`);
+      tips.push(`🥒 Düşük Karbonhidrat (${carbs}g)\nDüşük karbonhidratlı bir öğün. Yağ yakma için iyi ama enerji seviyeniz düşebilir. Yoğun aktivite öncesi karbonhidrat ekleyin.`);
     }
     
     // 4. Yağ Analizi
-    if (meal.fat > 40) {
-      tips.push(`🥑 Yüksek Yağ (${meal.fat}g)\nYüksek yağ içeriği. Tokluk hissi uzun sürer ama sindirim yavaşlar. Sağlıklı yağlar tercih edin: Zeytinyağı, avokado, fındık.`);
-    } else if (meal.fat > 20) {
-      tips.push(`✅ Dengeli Yağ (${meal.fat}g)\nYağ miktarı uygun seviyede. Hormon dengesi ve tokluk için iyi. Sağlıklı yağlardan devam edin.`);
+    const fat = meal.fat ?? 0;
+    if (fat > 40) {
+      tips.push(`🥑 Yüksek Yağ (${fat}g)\nYüksek yağ içeriği. Tokluk hissi uzun sürer ama sindirim yavaşlar. Sağlıklı yağlar tercih edin: Zeytinyağı, avokado, fındık.`);
+    } else if (fat > 20) {
+      tips.push(`✅ Dengeli Yağ (${fat}g)\nYağ miktarı uygun seviyede. Hormon dengesi ve tokluk için iyi. Sağlıklı yağlardan devam edin.`);
     } else {
-      tips.push(`💚 Düşük Yağ (${meal.fat}g)\nDüşük yağlı bir öğün. Hormon dengesi için günde 50-70g yağ hedefleyin. Zeytinyağı, fındık ekleyebilirsiniz.`);
+      tips.push(`💚 Düşük Yağ (${fat}g)\nDüşük yağlı bir öğün. Hormon dengesi için günde 50-70g yağ hedefleyin. Zeytinyağı, fındık ekleyebilirsiniz.`);
     }
     
     // 5. Öğün Zamanına Göre Öneri
