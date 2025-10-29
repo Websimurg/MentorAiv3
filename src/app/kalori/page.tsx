@@ -481,9 +481,9 @@ export default function Kalori() {
 
   const filteredMeals = filterMealsByPeriod();
   const totalCalories = filteredMeals.reduce((sum, meal) => sum + meal.calories, 0);
-  const totalProtein = filteredMeals.reduce((sum, meal) => sum + meal.protein, 0);
-  const totalCarbs = filteredMeals.reduce((sum, meal) => sum + meal.carbs, 0);
-  const totalFat = filteredMeals.reduce((sum, meal) => sum + meal.fat, 0);
+  const totalProtein = filteredMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0);
+  const totalCarbs = filteredMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0);
+  const totalFat = filteredMeals.reduce((sum, meal) => sum + (meal.fat ?? 0), 0);
   const caloriePercentage = Math.min((totalCalories / dailyGoal) * 100, 100);
 
   // Filtrelenmiş öğünleri tipe göre grupla
