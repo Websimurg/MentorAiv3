@@ -284,7 +284,7 @@ export default function Kalori() {
       const displayName = data.name || "Yüklenen Resim";
       
       const newMeal: Meal = {
-        id: Date.now(),
+        id: Date.now().toString(),
         name: displayName,
         calories: data.calories || 0,
         protein: data.protein || 0,
