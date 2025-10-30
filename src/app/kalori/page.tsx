@@ -407,9 +407,11 @@ export default function Kalori() {
     }
 
     console.log('Meal eklendi:', data);
-    await loadMeals();
+    
+    // Hızlı güncelleme - await kullanma
     setAnalyzedMeal(null);
     setSelectedImage(null);
+    loadMeals(); // async ama await yok - hızlı UI güncellemesi
   };
 
   const cancelAnalysis = () => {
