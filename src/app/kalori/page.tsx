@@ -38,7 +38,7 @@ export default function Kalori() {
   const [selectedMealDetail, setSelectedMealDetail] = useState<Meal | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'yesterday' | 'week'>('today');
+  // Filtre kaldırıldı - tüm geçmiş gösteriliyor
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -441,61 +441,8 @@ export default function Kalori() {
     return "Atıştırmalık";
   };
 
-  // Tarih filtreleme fonksiyonu
-  const filterMealsByPeriod = () => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    return meals.filter(meal => {
-      // meal.date yoksa meal.id'den tarih çıkar (eski kayıtlar için)
-      if (!meal.date) {
-        return false; // Tarih yoksa filtreleme dışında bırak
-      }
-      
-      // meal.date string'ini parse et (format: "27.10.2025")
-      const dateParts = meal.date.split('.');
-      if (dateParts.length !== 3) {
-        return false; // Geçersiz format
-      }
-      
-      const mealDate = new Date(
-        parseInt(dateParts[2]), // yıl
-        parseInt(dateParts[1]) - 1, // ay (0-indexed)
-        parseInt(dateParts[0]) // gün
-      );
-      
-      switch(selectedPeriod) {
-        case 'today':
-          const mealDay = new Date(mealDate.getFullYear(), mealDate.getMonth(), mealDate.getDate());
-          return mealDay.getTime() === today.getTime();
-        
-        case 'yesterday':
-          const yesterday = new Date(today);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayMeal = new Date(mealDate.getFullYear(), mealDate.getMonth(), mealDate.getDate());
-          return yesterdayMeal.getTime() === yesterday.getTime();
-        
-        case 'week':
-          // Haftanın başlangıcı (Pazartesi)
-          const startOfWeek = new Date(today);
-          const dayOfWeek = today.getDay();
-          const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Pazar ise -6, diğerleri için 1-dayOfWeek
-          startOfWeek.setDate(today.getDate() + diff);
-          startOfWeek.setHours(0, 0, 0, 0);
-          
-          const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 6);
-          endOfWeek.setHours(23, 59, 59, 999);
-          
-          return mealDate >= startOfWeek && mealDate <= endOfWeek;
-        
-        default:
-          return true;
-      }
-    });
-  };
-
-  const filteredMeals = useMemo(() => filterMealsByPeriod(), [meals, selectedPeriod]);
+  // Tüm yemekleri göster (filtre yok)
+  const filteredMeals = useMemo(() => meals, [meals]);
   const totalCalories = useMemo(() => filteredMeals.reduce((sum, meal) => sum + meal.calories, 0), [filteredMeals]);
   const totalProtein = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0), [filteredMeals]);
   const totalCarbs = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0), [filteredMeals]);
@@ -520,46 +467,10 @@ export default function Kalori() {
             <p className="text-gray-600">Günlük kalori alımını takip et, sağlıklı kal</p>
           </div>
           
-          {/* Periyot Seçici */}
-          <div className="flex gap-2 bg-white rounded-xl p-2 shadow-md">
-            <button
-              onClick={() => setSelectedPeriod('today')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                selectedPeriod === 'today' 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-               Bugün
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('yesterday')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                selectedPeriod === 'yesterday' 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-               Dün
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('week')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                selectedPeriod === 'week' 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-               Bu Hafta
-            </button>
-          </div>
-          
-          {/* Tarih Aralığı Gösterimi */}
-          <div className="mt-4 text-center">
+          {/* Geçmiş Kayıtlar Başlığı */}
+          <div className="text-center">
             <p className="text-sm font-semibold text-gray-600">
-              {selectedPeriod === 'today' && `🌞 ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' })}`}
-              {selectedPeriod === 'yesterday' && `🌙 ${new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' })}`}
-              {selectedPeriod === 'week' && `📆 ${new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 1)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} - ${new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 7)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+              📋 Tüm Geçmiş Kayıtlar
             </p>
           </div>
         </div>
@@ -570,7 +481,7 @@ export default function Kalori() {
             <div className="flex items-center justify-between mb-2">
               <div className="text-3xl">🔥</div>
               <span className="text-xs font-semibold px-2 py-1 bg-orange-100 text-orange-700 rounded-full">
-                {selectedPeriod === 'today' ? 'Bugün' : selectedPeriod === 'yesterday' ? 'Dün' : 'Bu Hafta'}
+                Toplam
               </span>
             </div>
             <div className="text-3xl font-bold text-orange-600 mb-1">{totalCalories}</div>
