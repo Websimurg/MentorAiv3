@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import * as Sentry from '@sentry/nextjs';
 import { User } from "@supabase/supabase-js";
 
 interface UserProfile {
@@ -59,10 +58,6 @@ export default function Profil() {
   });
 
   useEffect(() => {
-    Sentry.setContext('page', {
-      name: 'Profil',
-      url: typeof window !== 'undefined' ? window.location.href : '',
-    });
     checkUser();
   }, []);
 
@@ -129,18 +124,10 @@ export default function Profil() {
     if (!user) return;
     
     setSaving(true);
-    
-    Sentry.addBreadcrumb({
-      category: 'profile',
-      message: 'Profil güncelleme başlatıldı',
-      level: 'info',
-    });
-    
     try {
       const profileData: any = {
         id: user.id,
-        name: profile.name,
-        updated_at: new Date().toISOString()
+        name: profile.name
       };
       
       // Sadece dolu alanları ekle
@@ -152,40 +139,15 @@ export default function Profil() {
       if (profile.weight) profileData.weight = profile.weight;
       if (profile.goal) profileData.goal = profile.goal;
       
-      console.log('Profil güncelleniyor:', profileData);
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('profiles')
-        .upsert(profileData, {
-          onConflict: 'id'
-        })
-        .select();
+        .upsert(profileData);
 
-      if (error) {
-        console.error('Profil güncelleme hatası:', error);
-        throw error;
-      }
-      
-      console.log('Profil güncellendi:', data);
-      
-      Sentry.addBreadcrumb({
-        category: 'profile',
-        message: 'Profil başarıyla güncellendi',
-        level: 'info',
-      });
+      if (error) throw error;
       
       alert("✅ Profil başarıyla güncellendi!");
     } catch (error: any) {
-      console.error('Profil kaydetme hatası:', error);
-      
-      Sentry.captureException(error, {
-        tags: {
-          action: 'save_profile',
-          user_id: user.id,
-        },
-      });
-      
-      alert("❌ Profil güncellenirken hata oluştu: " + (error.message || 'Bilinmeyen hata'));
+      alert("❌ Hata: " + error.message);
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,0 @@
-# Otomatik deploy tamamen devre dışı
-[build]
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF ."
-
-[build.environment]
-  NODE_VERSION = "20"

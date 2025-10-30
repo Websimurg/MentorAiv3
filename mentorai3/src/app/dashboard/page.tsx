@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import * as Sentry from '@sentry/nextjs';
 import { useUser } from "@/lib/useUser";
 
 interface Stats {
@@ -46,10 +45,6 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    Sentry.setContext('page', {
-      name: 'Dashboard',
-      url: typeof window !== 'undefined' ? window.location.href : '',
-    });
     if (user) {
       checkUser();
     }
