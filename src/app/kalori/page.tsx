@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -481,12 +481,12 @@ export default function Kalori() {
     });
   };
 
-  const filteredMeals = filterMealsByPeriod();
-  const totalCalories = filteredMeals.reduce((sum, meal) => sum + meal.calories, 0);
-  const totalProtein = filteredMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0);
-  const totalCarbs = filteredMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0);
-  const totalFat = filteredMeals.reduce((sum, meal) => sum + (meal.fat ?? 0), 0);
-  const caloriePercentage = Math.min((totalCalories / dailyGoal) * 100, 100);
+  const filteredMeals = useMemo(() => filterMealsByPeriod(), [meals, selectedPeriod]);
+  const totalCalories = useMemo(() => filteredMeals.reduce((sum, meal) => sum + meal.calories, 0), [filteredMeals]);
+  const totalProtein = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0), [filteredMeals]);
+  const totalCarbs = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0), [filteredMeals]);
+  const totalFat = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.fat ?? 0), 0), [filteredMeals]);
+  const caloriePercentage = useMemo(() => Math.min((totalCalories / dailyGoal) * 100, 100), [totalCalories, dailyGoal]);
 
   // Filtrelenmiş öğünleri tipe göre grupla
   const mealsByType = {
