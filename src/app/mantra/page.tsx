@@ -29,11 +29,6 @@ export default function Mantra() {
   const [currentMantraIndex, setCurrentMantraIndex] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const [stats, setStats] = useState<Stats>({ totalMantras: 0, streak: 0, categoryCounts: {} });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
-  const [showTimeline, setShowTimeline] = useState(false);
-  const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
 
   const categories = [
@@ -183,29 +178,6 @@ export default function Mantra() {
     }
   };
   
-  const toggleComplete = (id: number) => {
-    setMantras(mantras.map(m => m.id === id ? { ...m, completed: !m.completed } : m));
-  };
-  
-  const startEdit = (mantra: Mantra) => {
-    setEditingId(mantra.id);
-    setEditText(mantra.text);
-  };
-  
-  const saveEdit = (id: number) => {
-    if (editText.trim() === "") return;
-    setMantras(mantras.map(m => {
-      if (m.id === id) {
-        return {
-          ...m,
-          text: editText,
-          editHistory: [...(m.editHistory || []), { text: m.text, date: new Date().toLocaleDateString('tr-TR') }]
-        };
-      }
-      return m;
-    }));
-    setEditingId(null);
-  };
 
   const playMantras = () => {
     if (mantras.length === 0) return;
@@ -222,7 +194,7 @@ export default function Mantra() {
   }, [isPlaying, mantras.length]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="fixed inset-0 pointer-events-none z-50">
@@ -243,198 +215,143 @@ export default function Mantra() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-6 sticky top-0 z-40">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            🌟 Mantra
-          </h1>
-          <p className="text-sm text-gray-500">Günlük olumlamalarınızı oluşturun</p>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto">
 
         {/* Stats Dashboard */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-2xl p-4 border border-gray-200">
-            <div className="text-2xl mb-1">📜</div>
-            <div className="text-2xl font-bold text-gray-900">{stats.totalMantras}</div>
-            <div className="text-xs text-gray-500">Toplam</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="text-3xl mb-2">📊</div>
+            <div className="text-3xl font-bold text-purple-600 mb-1">{mantras.length}</div>
+            <p className="text-sm text-gray-600">Toplam Mantra</p>
           </div>
-          
-          <div className="bg-white rounded-2xl p-4 border border-gray-200">
-            <div className="text-2xl mb-1">🔥</div>
-            <div className="text-2xl font-bold text-gray-900">{stats.streak}</div>
-            <div className="text-xs text-gray-500">Gün Seri</div>
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="text-3xl mb-2">🔥</div>
+            <div className="text-3xl font-bold text-indigo-600 mb-1">{stats.streak}</div>
+            <p className="text-sm text-gray-600">Gün Seri</p>
           </div>
-          
-          <div className="bg-white rounded-2xl p-4 border border-gray-200">
-            <div className="text-2xl mb-1">✅</div>
-            <div className="text-2xl font-bold text-gray-900">{mantras.filter(m => m.completed === true).length}</div>
-            <div className="text-xs text-gray-500">Tamamlanan</div>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-4 border border-gray-200">
-            <div className="text-2xl mb-1">🎯</div>
-            <div className="text-2xl font-bold text-gray-900">{Object.keys(stats.categoryCounts).length}</div>
-            <div className="text-xs text-gray-500">Kategori</div>
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="text-3xl mb-2">🎯</div>
+            <div className="text-3xl font-bold text-pink-600 mb-1">{categories.length}</div>
+            <p className="text-sm text-gray-600">Kategori</p>
           </div>
         </div>
 
         {/* Mantra Player */}
         {mantras.length > 0 && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200">
-            <div className="text-center mb-4">
-              <div className="text-xl font-semibold text-gray-900 mb-4 leading-relaxed">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl p-12 mb-8 relative overflow-hidden">
+            {/* Decorative gradient */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500"></div>
+            
+            <div className="text-center">
+              <h2 className="text-4xl font-bold text-gray-800 mb-6">🌟 Mantra Oynatıcı</h2>
+              <p className="text-2xl text-gray-700 mb-8 leading-relaxed italic">
                 "{mantras[currentMantraIndex]?.text}"
-              </div>
+              </p>
+              
+              {/* Large Play Button */}
               <button
                 onClick={playMantras}
-                className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-colors"
+                className="w-full px-12 py-8 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 text-white rounded-3xl font-bold text-3xl hover:shadow-2xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
               >
                 {isPlaying ? '⏸️ Durdur' : '▶️ Otomatik Oynat'}
               </button>
+              
+              <p className="text-gray-500 text-sm mt-6">{currentMantraIndex + 1} / {mantras.length}</p>
             </div>
           </div>
         )}
 
         {/* Category Selector */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">🎯 Kategori</h3>
-          <div className="flex flex-wrap gap-2">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">🎯 Kategori Seç</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                className={`p-4 rounded-xl text-center font-semibold transition-all transform hover:scale-105 ${
                   selectedCategory === cat.id
-                    ? 'bg-gray-900 text-white'
+                    ? `bg-gradient-to-r ${cat.color} text-white shadow-lg`
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {cat.icon} {cat.name}
+                <div className="text-3xl mb-2">{cat.icon}</div>
+                <div className="text-sm">{cat.name}</div>
               </button>
             ))}
           </div>
         </div>
 
         {/* Add Mantra */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">
-            ✨ Yeni Mantra
-          </h3>
-          <div className="space-y-3">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">✨ Yeni Mantra Ekle</h3>
+          <div className="flex flex-col md:flex-row gap-3">
             <input
               type="text"
               value={newMantra}
               onChange={(e) => setNewMantra(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && addMantra()}
               placeholder="Bugün kendime ne söylemek istiyorum?"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-gray-900 placeholder:text-gray-400"
+              className="flex-1 px-5 py-4 rounded-xl border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-base"
             />
             <button
               onClick={addMantra}
-              className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-colors"
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
             >
-              Ekle
+              🚀 Ekle
             </button>
           </div>
         </div>
 
         {/* AI Suggestions */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">
-            💡 Öneriler
-          </h3>
-          <div className="space-y-2">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">🧠 AI Mantra Önerileri</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {suggestions[selectedCategory]?.map((suggestion, idx) => (
               <button
                 key={idx}
-                className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200"
+                className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 rounded-xl text-left text-sm text-gray-800 transition-all border-2 border-purple-200 hover:border-purple-400 transform hover:scale-105"
                 onClick={() => setNewMantra(suggestion)}
               >
-                <p className="text-sm text-gray-700">
-                  "{suggestion}"
-                </p>
+                ✨ {suggestion}
               </button>
             ))}
           </div>
         </div>
 
         {/* Mantras List */}
-        <div>
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">📜 Mantralarım</h3>
           {mantras.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
-              <div className="text-5xl mb-3">🌟</div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Henüz mantra yok</h3>
-              <p className="text-sm text-gray-500">Önerilerden birini seçin</p>
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🌟</div>
+              <p className="text-lg text-gray-600">Henüz mantra eklemediniz</p>
+              <p className="text-sm text-gray-500 mt-2">Yukarıdaki önerilerden birini seçerek başlayın!</p>
             </div>
           ) : (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900 px-1">Son Mantralar</h3>
-              {mantras.slice(0, 10).map((mantra) => (
+              {mantras.map((mantra) => (
                 <div
                   key={mantra.id}
-                  className="bg-white rounded-xl p-4 border border-gray-200"
+                  className="group p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-purple-300 transition-all hover:shadow-md"
                 >
-                  {editingId === mantra.id ? (
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => saveEdit(mantra.id)}
-                          className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium"
-                        >
-                          Kaydet
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"
-                        >
-                          İptal
-                        </button>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">{categories.find(c => c.id === mantra.category)?.icon}</span>
+                    <div className="flex-1">
+                      <p className="text-base font-semibold text-gray-900 leading-relaxed">"{mantra.text}"</p>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                        <span>📅 {mantra.date}</span>
+                        <span>•</span>
+                        <span>🕒 {mantra.time}</span>
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <p className="text-sm font-medium text-gray-900 flex-1">
-                          "{mantra.text}"
-                        </p>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => startEdit(mantra)}
-                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                          >
-                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => deleteMantra(mantra.id)}
-                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                          >
-                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span>{categories.find(c => c.id === mantra.category)?.icon}</span>
-                        <span>{mantra.date}</span>
-                        <span>•</span>
-                        <span>{mantra.time}</span>
-                      </div>
-                    </>
-                  )}
+                    <button
+                      onClick={() => deleteMantra(mantra.id)}
+                      className="opacity-0 group-hover:opacity-100 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm font-medium transition-all"
+                    >
+                      🗑️ Sil
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
