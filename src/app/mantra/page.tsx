@@ -341,8 +341,6 @@ export default function Mantra() {
                       <p className="text-base font-semibold text-gray-900 leading-relaxed">"{mantra.text}"</p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                         <span>📅 {mantra.date}</span>
-                        <span>•</span>
-                        <span>🕒 {mantra.time}</span>
                       </div>
                     </div>
                     <button
