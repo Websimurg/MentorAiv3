@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import * as Sentry from '@sentry/nextjs';
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0);
@@ -10,6 +11,18 @@ export default function Home() {
   const [activeFAQ, setActiveFAQ] = useState<number | null>(null);
 
   useEffect(() => {
+    // Sentry context ayarla
+    Sentry.setContext('page', {
+      name: 'Home',
+      url: typeof window !== 'undefined' ? window.location.href : '',
+    });
+
+    Sentry.addBreadcrumb({
+      category: 'navigation',
+      message: 'Ana sayfa yüklendi',
+      level: 'info',
+    });
+
     const handleScroll = () => setScrollY(window.scrollY);
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -148,12 +161,12 @@ export default function Home() {
             <Link href="#features" className="text-gray-300 hover:text-white transition">Özellikler</Link>
             <Link href="#testimonials" className="text-gray-300 hover:text-white transition">Yorumlar</Link>
             <Link href="#faq" className="text-gray-300 hover:text-white transition">SSS</Link>
-            <Link 
-              href="/login" 
-              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+            <button 
+              disabled
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-semibold opacity-50 cursor-not-allowed"
             >
               Başla →
-            </Link>
+            </button>
           </div>
         </div>
       </nav>
@@ -206,15 +219,15 @@ export default function Home() {
               opacity: 1 - scrollY / 500
             }}
           >
-            <Link
-              href="/login"
-              className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-lg shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-all transform hover:scale-105"
+            <button
+              disabled
+              className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-lg shadow-2xl shadow-purple-500/50 opacity-50 cursor-not-allowed"
             >
               <span className="flex items-center gap-2">
-                🚀 Hemen Başla
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
+                🚀 Hemen Başla - Ücretsiz
+                <span>→</span>
               </span>
-            </Link>
+            </button>
             <Link
               href="#features"
               className="px-8 py-4 bg-white/10 backdrop-blur-sm rounded-full font-bold text-lg border border-white/20 hover:bg-white/20 transition-all transform hover:scale-105"
@@ -394,12 +407,12 @@ export default function Home() {
             <p className="text-2xl mb-10 text-purple-100">
               Bugün başla, hayatını dönüştür. Tamamen ücretsiz.
             </p>
-            <Link
-              href="/login"
-              className="inline-block px-12 py-5 bg-white text-purple-600 rounded-full font-bold text-xl shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105"
+            <button
+              disabled
+              className="inline-block px-12 py-5 bg-white text-purple-600 rounded-full font-bold text-xl shadow-2xl opacity-50 cursor-not-allowed"
             >
               🎉 Ücretsiz Kayıt Ol
-            </Link>
+            </button>
           </div>
         </div>
       </section>

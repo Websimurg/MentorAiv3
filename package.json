@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "@sentry/nextjs": "^10.22.0",
-    "@supabase/supabase-js": "^2.76.1",
-    "lucide-react": "^0.548.0",
-    "zustand": "^5.0.8"
-  }
-}

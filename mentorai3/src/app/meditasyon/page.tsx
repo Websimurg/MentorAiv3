@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import * as Sentry from '@sentry/nextjs';
+import { supabase } from "@/lib/supabase";
 
 interface Session {
   id: string;
