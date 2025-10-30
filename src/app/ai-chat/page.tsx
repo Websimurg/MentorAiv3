@@ -44,10 +44,7 @@ export default function AIChat() {
     learnings: [],
     lastUpdated: Date.now()
   });
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mainCategories = [
     { id: "love", name: "Aşk & İlişkiler", icon: "❤️", gradient: "from-pink-400 to-rose-500" },
@@ -197,10 +194,6 @@ export default function AIChat() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     
-    // Görüntüyü sakla ve temizle
-    const imageToSend = uploadedImage;
-    setUploadedImage(null);
-    
     setIsLoading(true);
     
     try {
@@ -219,8 +212,7 @@ export default function AIChat() {
         body: JSON.stringify({
           message: messageToSend,
           threadId: threadId,
-          userContext: userContext, // Kullanıcı bağlamını gönder
-          image: imageToSend // Görüntüyü gönder
+          userContext: userContext // Kullanıcı bağlamını gönder
         })
       });
 
@@ -389,17 +381,6 @@ export default function AIChat() {
     await loadChatHistories(user.id);
   };
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadedImage(reader.result as string);
-      setShowAttachMenu(false);
-    };
-    reader.readAsDataURL(file);
-  };
 
   const updateUserProfile = (learnings: string[]) => {
     const updatedProfile = {
@@ -615,58 +596,8 @@ export default function AIChat() {
       {/* WhatsApp Tarzı Input Alanı */}
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white border-t shadow-lg z-30">
         <div className="max-w-4xl mx-auto p-4">
-          {/* Yüklenmiş Resim Önizleme */}
-          {uploadedImage && (
-            <div className="mb-2 relative inline-block">
-              <img src={uploadedImage} alt="Upload" className="w-20 h-20 rounded-lg object-cover" />
-              <button
-                onClick={() => setUploadedImage(null)}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
-              >
-                ×
-              </button>
-            </div>
-          )}
           
           <div className="flex items-center gap-2">
-            {/* Ekle Butonu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowAttachMenu(!showAttachMenu)}
-                className="p-3 text-gray-600 hover:bg-gray-100 rounded-full transition"
-              >
-                📎
-              </button>
-              
-              {showAttachMenu && (
-                <div className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl p-2 space-y-1">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg w-full text-left"
-                  >
-                    📷 Resim
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowAttachMenu(false);
-                      alert('Web arama özelliği yakında!');
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg w-full text-left"
-                  >
-                    🔍 Web Ara
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            {/* Hidden File Input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
             
             {/* Text Input */}
             <input
@@ -682,7 +613,7 @@ export default function AIChat() {
             {/* Gönder Butonu */}
             <button
               onClick={() => sendMessage()}
-              disabled={isLoading || (!input.trim() && !uploadedImage)}
+              disabled={isLoading || !input.trim()}
               className="p-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "⏳" : "🚀"}
