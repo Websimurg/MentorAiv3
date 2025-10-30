@@ -39,7 +39,7 @@ export default function AIChat() {
   const [showHistory, setShowHistory] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>({
-    name: "Hasan",
+    name: "Kullanıcı",
     preferences: [],
     learnings: [],
     lastUpdated: Date.now()
@@ -553,7 +553,7 @@ export default function AIChat() {
       )}
 
       {!selectedCategory && !selectedSubCategory && messages.length === 0 && (
-        <div className="max-w-6xl mx-auto mb-8"><div className="text-center mb-8"><div className="text-6xl mb-4">👋</div><h1 className="text-4xl font-bold text-gray-800 mb-2">Merhaba Hasan!</h1><p className="text-gray-600">Hayatının hangi alanında destek istiyorsun?</p></div>
+        <div className="max-w-6xl mx-auto mb-8"><div className="text-center mb-8"><div className="text-6xl mb-4">👋</div><h1 className="text-4xl font-bold text-gray-800 mb-2">Merhaba {userProfile.name}!</h1><p className="text-gray-600">Hayatının hangi alanında destek istiyorsun?</p></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">{mainCategories.map((cat, idx) => (<button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`group relative overflow-hidden rounded-3xl p-8 transition-all duration-500 transform hover:scale-105 shadow-xl hover:shadow-2xl bg-gradient-to-br ${cat.gradient}`} style={{ animation: `slideIn 0.5s ease-out ${idx * 100}ms both` }}><div className="relative z-10 text-center"><div className="text-6xl mb-4 transform transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12">{cat.icon}</div><h3 className="text-xl font-bold text-white mb-2">{cat.name}</h3><div className="mt-4 text-white/90 text-sm">Tıklayarak keşfet →</div></div></button>))}</div></div>
       )}
 
