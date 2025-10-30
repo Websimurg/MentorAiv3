@@ -356,12 +356,8 @@ export default function AIChat() {
   };
   
   const startNewChat = () => {
-    const welcomeMessage: Message = {
-      role: "assistant",
-      content: "Merhaba! Ben senin kişisel gelişim asistanınım. Hangi konuda yardımcı olabilirim?",
-      timestamp: Date.now()
-    };
-    setMessages([welcomeMessage]);
+    // Mesajları temizle ve kategorileri göster
+    setMessages([]);
     setThreadId(null);
     setCurrentChatId(null);
     setSelectedCategory(null);
