@@ -181,9 +181,10 @@ export default function Dashboard() {
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
-    if (hour < 12) return "Günaydın";
-    if (hour < 18) return "İyi günler";
-    return "İyi akşamlar";
+    if (hour >= 6 && hour < 12) return "Günaydın"; // 06:00 - 11:59
+    if (hour >= 12 && hour < 18) return "İyi günler"; // 12:00 - 17:59
+    if (hour >= 18 && hour < 22) return "İyi akşamlar"; // 18:00 - 21:59
+    return "İyi geceler"; // 22:00 - 05:59
   };
 
   const features = [
