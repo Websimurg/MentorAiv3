@@ -117,7 +117,7 @@ export default function Kalori() {
         carbs: parseInt(carbs) || 0,
         fat: parseInt(fat) || 0,
         meal_type: mealType,
-        date: new Date().toISOString().split('T')[0]
+        date: new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0]
       })
       .select();
 
@@ -395,7 +395,7 @@ export default function Kalori() {
         carbs: analyzedMeal.carbs || 0,
         fat: analyzedMeal.fat || 0,
         meal_type: analyzedMeal.type || 'Atıştırmalık',
-        date: new Date().toISOString().split('T')[0],
+        date: new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0],
         image: analyzedMeal.image || null
       })
       .select();
