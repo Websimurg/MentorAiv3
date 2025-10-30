@@ -196,6 +196,11 @@ export default function AIChat() {
     const userMessage: Message = { role: "user", content: messageToSend, timestamp: Date.now() };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    
+    // Görüntüyü sakla ve temizle
+    const imageToSend = uploadedImage;
+    setUploadedImage(null);
+    
     setIsLoading(true);
     
     try {
@@ -214,7 +219,8 @@ export default function AIChat() {
         body: JSON.stringify({
           message: messageToSend,
           threadId: threadId,
-          userContext: userContext // Kullanıcı bağlamını gönder
+          userContext: userContext, // Kullanıcı bağlamını gönder
+          image: imageToSend // Görüntüyü gönder
         })
       });
 
