@@ -25,10 +25,9 @@ export default function Mantra() {
   const [mantras, setMantras] = useState<Mantra[]>([]);
   const [newMantra, setNewMantra] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("genel");
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentMantraIndex, setCurrentMantraIndex] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const [stats, setStats] = useState<Stats>({ totalMantras: 0, streak: 0, categoryCounts: {} });
+  const [dailyAffirmations, setDailyAffirmations] = useState<string[]>([]);
   const router = useRouter();
 
   const categories = [
@@ -177,21 +176,35 @@ export default function Mantra() {
       setMantras(mantras.filter(m => m.id !== id));
     }
   };
-  
 
-  const playMantras = () => {
-    if (mantras.length === 0) return;
-    setIsPlaying(!isPlaying);
-  };
-
+  // Günlük random olumlama seç
   useEffect(() => {
-    if (isPlaying && mantras.length > 0) {
-      const interval = setInterval(() => {
-        setCurrentMantraIndex((prev) => (prev + 1) % mantras.length);
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [isPlaying, mantras.length]);
+    const allAffirmations = [
+      "Bugün harika bir gün olacak! 🌟",
+      "Kendime güveniyorum ve yeteneklerimi biliyorum 💪",
+      "Her zorluk beni daha güçlü yapıyor 🚀",
+      "Huzur ve mutluluğu hak ediyorum 💜",
+      "Ben başarılıyım ve değerliyim 🏆",
+      "Hedeflerime ulaşmak için gerekli güce sahibim ✨",
+      "Sevgi ve şefkat dolu bir kalbim var ❤️",
+      "Kendimi olduğum gibi seviyorum 🤗",
+      "İç huzurum her şeyi aşıyor 🧘",
+      "Hayat bana bolluk ve bereket getiriyor 💰",
+      "Potansiyelim sınırsız 🌈",
+      "Her adım beni başarıya yakınlaştırıyor 🚶",
+    ];
+    
+    const today = new Date().toDateString();
+    const seed = today.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    
+    const shuffled = [...allAffirmations].sort(() => {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x) - 0.5;
+    });
+    
+    setDailyAffirmations(shuffled.slice(0, 2));
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
@@ -236,30 +249,27 @@ export default function Mantra() {
           </div>
         </div>
 
-        {/* Mantra Player */}
-        {mantras.length > 0 && (
-          <div className="bg-white rounded-[2.5rem] shadow-2xl p-12 mb-8 relative overflow-hidden">
-            {/* Decorative gradient */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500"></div>
-            
-            <div className="text-center">
-              <h2 className="text-4xl font-bold text-gray-800 mb-6">🌟 Mantra Oynatıcı</h2>
-              <p className="text-2xl text-gray-700 mb-8 leading-relaxed italic">
-                "{mantras[currentMantraIndex]?.text}"
-              </p>
-              
-              {/* Large Play Button */}
-              <button
-                onClick={playMantras}
-                className="w-full px-12 py-8 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 text-white rounded-3xl font-bold text-3xl hover:shadow-2xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {isPlaying ? '⏸️ Durdur' : '▶️ Otomatik Oynat'}
-              </button>
-              
-              <p className="text-gray-500 text-sm mt-6">{currentMantraIndex + 1} / {mantras.length}</p>
-            </div>
+        {/* Günlük Olumlamalar */}
+        <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 rounded-3xl shadow-xl p-8 mb-8 border-2 border-purple-200">
+          <div className="text-center mb-6">
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">🌟 Günlük Olumlamalar</h2>
+            <p className="text-sm text-gray-600">Her gün senin için seçilmiş motive edici mesajlar</p>
           </div>
-        )}
+          
+          <div className="space-y-4">
+            {dailyAffirmations.map((affirmation, index) => (
+              <div 
+                key={index}
+                className="p-5 bg-white rounded-2xl shadow-md border border-purple-100"
+              >
+                <p className="text-xl text-gray-800 font-semibold leading-relaxed text-center">
+                  {affirmation}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
 
         {/* Category Selector */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
