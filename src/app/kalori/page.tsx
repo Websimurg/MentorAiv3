@@ -117,7 +117,14 @@ export default function Kalori() {
         carbs: parseInt(carbs) || 0,
         fat: parseInt(fat) || 0,
         meal_type: mealType,
-        date: new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0]
+        date: (() => {
+          const now = new Date();
+          const turkeyTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+          const year = turkeyTime.getFullYear();
+          const month = String(turkeyTime.getMonth() + 1).padStart(2, '0');
+          const day = String(turkeyTime.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })()
       })
       .select();
 
@@ -395,7 +402,14 @@ export default function Kalori() {
         carbs: analyzedMeal.carbs || 0,
         fat: analyzedMeal.fat || 0,
         meal_type: analyzedMeal.type || 'Atıştırmalık',
-        date: new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0],
+        date: (() => {
+          const now = new Date();
+          const turkeyTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+          const year = turkeyTime.getFullYear();
+          const month = String(turkeyTime.getMonth() + 1).padStart(2, '0');
+          const day = String(turkeyTime.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })(),
         image: analyzedMeal.image || null
       })
       .select();
