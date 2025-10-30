@@ -186,7 +186,6 @@ export default function AIChat() {
       level: 'info',
       data: {
         messageLength: messageToSend.length,
-        hasImage: !!uploadedImage,
       },
     });
     
@@ -256,7 +255,6 @@ export default function AIChat() {
         extra: {
           messageLength: messageToSend.length,
           threadId: threadId,
-          hasImage: !!uploadedImage,
         },
       });
       
