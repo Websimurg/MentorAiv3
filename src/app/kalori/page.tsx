@@ -765,7 +765,6 @@ export default function Kalori() {
                           <h4 className="font-bold text-gray-800 text-xl group-hover:text-purple-700 transition-colors duration-300">{meal.name}</h4>
                           <div className="flex gap-2">
                             <span className="text-sm text-gray-500 font-semibold bg-purple-50 px-3 py-1 rounded-full">📅 {meal.date}</span>
-                            <span className="text-sm text-gray-500 font-semibold bg-blue-50 px-3 py-1 rounded-full">🕒 {meal.time}</span>
                           </div>
                         </div>
                         <div className="flex gap-3 text-sm font-semibold mb-2">
