@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/useUser";
 
@@ -62,12 +62,12 @@ export default function Dashboard() {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Tüm API çağrılarını paralel yap
+    // Tüm API çağrılarını paralel yap - sadece gerekli kolonları çek
     const [meditationsRes, mealsRes, mantrasRes, courseProgressRes] = await Promise.all([
-      supabase.from('meditation_sessions').select('*').eq('user_id', user.id),
-      supabase.from('meals').select('*').eq('user_id', user.id).gte('date', today),
-      supabase.from('mantras').select('*').eq('user_id', user.id),
-      supabase.from('course_progress').select('*').eq('user_id', user.id)
+      supabase.from('meditation_sessions').select('duration, date, created_at').eq('user_id', user.id).limit(100),
+      supabase.from('meals').select('calories, date').eq('user_id', user.id).gte('date', today).limit(50),
+      supabase.from('mantras').select('id').eq('user_id', user.id).limit(100),
+      supabase.from('course_progress').select('progress_percent').eq('user_id', user.id).limit(20)
     ]);
 
     const meditations = meditationsRes.data || [];
@@ -128,7 +128,7 @@ export default function Dashboard() {
     // Son yemek
     const { data: meals } = await supabase
       .from('meals')
-      .select('*')
+      .select('name, calories, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -147,7 +147,7 @@ export default function Dashboard() {
     // Son mantra
     const { data: mantras } = await supabase
       .from('mantras')
-      .select('*')
+      .select('text, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1);
