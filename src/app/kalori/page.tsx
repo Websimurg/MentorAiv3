@@ -72,7 +72,7 @@ export default function Kalori() {
       .select('id, name, calories, protein, carbs, fat, meal_type, date, image, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(100); // Son 100 kayıt
+      .limit(30); // Son 30 kayıt - çok daha hızlı!
 
     if (error) {
       console.error('Meals yükleme hatası:', error);
