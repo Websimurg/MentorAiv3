@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -64,9 +64,10 @@ export default function Kalori() {
 
     const { data, error } = await supabase
       .from('meals')
-      .select('*')
+      .select('id, name, calories, protein, carbs, fat, meal_type, date, image, created_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100); // Son 100 kayıt
 
     if (error) {
       console.error('Meals yükleme hatası:', error);

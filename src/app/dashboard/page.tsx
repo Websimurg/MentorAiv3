@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/useUser";
 
@@ -50,13 +50,13 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const checkUser = async () => {
+  const checkUser = useCallback(async () => {
     if (!user) return;
     loadStats();
     loadActivities();
-  };
+  }, [user]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -87,7 +87,7 @@ export default function Dashboard() {
       courseProgress: totalProgress,
       streak: calculateStreak(meditations)
     });
-  };
+  }, []);
 
   const calculateStreak = (sessions: any[]) => {
     if (sessions.length === 0) return 0;
