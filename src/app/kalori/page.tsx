@@ -41,6 +41,7 @@ export default function Kalori() {
   // Filtre kaldırıldı - tüm geçmiş gösteriliyor
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isLoadingMeals, setIsLoadingMeals] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
@@ -59,8 +60,12 @@ export default function Kalori() {
   };
 
   const loadMeals = async () => {
+    setIsLoadingMeals(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setIsLoadingMeals(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from('meals')
@@ -98,6 +103,7 @@ export default function Kalori() {
         return mealData;
       });
       setMeals(formattedMeals);
+      setIsLoadingMeals(false);
       console.log('Meals yüklendi:', formattedMeals.length);
     }
   };

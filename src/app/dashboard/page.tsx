@@ -35,6 +35,8 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [quote, setQuote] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
 
   useEffect(() => {
     setRandomQuote();
@@ -57,8 +59,12 @@ export default function Dashboard() {
   }, [user]);
 
   const loadStats = useCallback(async () => {
+    setIsLoadingStats(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setIsLoadingStats(false);
+      return;
+    }
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -87,6 +93,7 @@ export default function Dashboard() {
       courseProgress: totalProgress,
       streak: calculateStreak(meditations)
     });
+    setIsLoadingStats(false);
   }, []);
 
   const calculateStreak = (sessions: any[]) => {
@@ -100,9 +107,13 @@ export default function Dashboard() {
     return streak;
   };
 
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async () => {
+    setIsLoadingActivities(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setIsLoadingActivities(false);
+      return;
+    }
 
     const acts: Activity[] = [];
     
@@ -164,7 +175,8 @@ export default function Dashboard() {
     }
     
     setActivities(acts);
-  };
+    setIsLoadingActivities(false);
+  }, []);
 
   const setRandomQuote = () => {
     const quotes = [
