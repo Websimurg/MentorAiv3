@@ -80,7 +80,13 @@ export default function Kalori() {
     }
 
     if (data) {
+      // Hızlı tarih formatlayıcı - tek seferlik oluştur
+      const dateFormatter = new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeFormatter = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      
       const formattedMeals: Meal[] = data.map(meal => {
+        const createdDate = new Date(meal.created_at);
+        
         const mealData: Meal = {
           id: meal.id.toString(),
           name: meal.name,
@@ -88,17 +94,14 @@ export default function Kalori() {
           protein: meal.protein || 0,
           carbs: meal.carbs || 0,
           fat: meal.fat || 0,
-          date: new Date(meal.created_at).toLocaleDateString('tr-TR'),
-          time: new Date(meal.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+          date: dateFormatter.format(createdDate),
+          time: timeFormatter.format(createdDate),
           type: (meal.meal_type || 'Atıştırmalık') as 'Kahvaltı' | 'Öğle' | 'Akşam' | 'Atıştırmalık',
           image: meal.image || undefined
         };
         
-        // Coach tips ve burn estimate oluştur
-        if (mealData.calories > 0) {
-          mealData.coachTips = generateCoachTips(mealData);
-          mealData.burnEstimate = calculateBurnEstimate(mealData.calories);
-        }
+        // Coach tips ve burn estimate KALDIRILDI - sadece detay açıldığında hesaplanacak
+        // Bu 100 kayıt için 6000+ işlemi ortadan kaldırıyor!
         
         return mealData;
       });
