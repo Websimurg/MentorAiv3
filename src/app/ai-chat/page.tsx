@@ -179,15 +179,19 @@ export default function AIChat() {
     const messageToSend = customMessage || input;
     if (!messageToSend.trim() || isLoading) return;
     
-    // Sentry breadcrumb ekle
-    Sentry.addBreadcrumb({
-      category: 'user-action',
-      message: 'Kullanıcı mesaj gönderdi',
-      level: 'info',
-      data: {
-        messageLength: messageToSend.length,
-      },
-    });
+    // Sentry breadcrumb ekle (hata durumunda devam et)
+    try {
+      Sentry.addBreadcrumb({
+        category: 'user-action',
+        message: 'Kullanıcı mesaj gönderdi',
+        level: 'info',
+        data: {
+          messageLength: messageToSend.length,
+        },
+      });
+    } catch (e) {
+      console.warn('Sentry breadcrumb error:', e);
+    }
     
     const userMessage: Message = { role: "user", content: messageToSend, timestamp: Date.now() };
     setMessages((prev) => [...prev, userMessage]);
