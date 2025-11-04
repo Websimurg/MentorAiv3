@@ -38,10 +38,10 @@ export default function Kalori() {
   const [selectedMealDetail, setSelectedMealDetail] = useState<Meal | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  // Filtre kaldırıldı - tüm geçmiş gösteriliyor
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLoadingMeals, setIsLoadingMeals] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<'today' | 'yesterday' | 'week'>('today');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function Kalori() {
     loadMeals();
   };
 
-  const loadMeals = async () => {
+  const loadMeals = useCallback(async () => {
     setIsLoadingMeals(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -90,12 +90,18 @@ export default function Kalori() {
       return;
     }
 
+    // Sadece son 7 günün verilerini çek - Çok daha hızlı!
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = weekAgo.toISOString();
+
     const { data, error } = await supabase
       .from('meals')
       .select('id, name, calories, protein, carbs, fat, meal_type, date, image, created_at')
       .eq('user_id', user.id)
+      .gte('created_at', weekAgoStr)
       .order('created_at', { ascending: false })
-      .limit(100); // Son 100 kayıt - geçmiş için
+      .limit(50); // Son 50 kayıt yeterli
 
     if (error) {
       console.error('Meals yükleme hatası:', error);
@@ -129,10 +135,10 @@ export default function Kalori() {
         return mealData;
       });
       setMeals(formattedMeals);
-      setIsLoadingMeals(false);
       console.log('Meals yüklendi:', formattedMeals.length);
     }
-  };
+    setIsLoadingMeals(false);
+  }, []);
 
   const addMeal = async () => {
     if (!mealName.trim() || !calories) return;
@@ -474,7 +480,7 @@ export default function Kalori() {
     return "Atıştırmalık";
   };
 
-  // Geçmiş kayıtları tarihe göre grupla: Bugün, Dün, Bu Hafta
+  // Geçmiş kayıtları tarihe göre grupla: Bugün, Dün, Bu Hafta - Optimize edildi
   const groupedMeals = useMemo(() => {
     const now = new Date();
     const today = now.toLocaleDateString('tr-TR');
@@ -485,7 +491,9 @@ export default function Kalori() {
     const yesterdayMeals: Meal[] = [];
     const thisWeekMeals: Meal[] = [];
 
-    meals.forEach(meal => {
+    // Tek loop ile grupla - daha hızlı
+    for (let i = 0; i < meals.length; i++) {
+      const meal = meals[i];
       if (meal.date === today) {
         todayMeals.push(meal);
       } else if (meal.date === yesterday) {
@@ -496,25 +504,56 @@ export default function Kalori() {
           thisWeekMeals.push(meal);
         }
       }
-    });
+    }
 
     return { todayMeals, yesterdayMeals, thisWeekMeals };
   }, [meals]);
 
-  // Sadece bugünün istatistikleri
-  const totalCalories = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + meal.calories, 0), [groupedMeals.todayMeals]);
-  const totalProtein = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0), [groupedMeals.todayMeals]);
-  const totalCarbs = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0), [groupedMeals.todayMeals]);
-  const totalFat = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + (meal.fat ?? 0), 0), [groupedMeals.todayMeals]);
-  const caloriePercentage = useMemo(() => Math.min((totalCalories / dailyGoal) * 100, 100), [totalCalories, dailyGoal]);
+  // Aktif filtreye göre istatistikler - Optimize edildi
+  const activeFilterMeals = useMemo(() => {
+    switch (activeFilter) {
+      case 'today':
+        return groupedMeals.todayMeals;
+      case 'yesterday':
+        return groupedMeals.yesterdayMeals;
+      case 'week':
+        return [...groupedMeals.todayMeals, ...groupedMeals.yesterdayMeals, ...groupedMeals.thisWeekMeals];
+      default:
+        return groupedMeals.todayMeals;
+    }
+  }, [activeFilter, groupedMeals]);
 
-  // Bugünün öğünlerini tipe göre grupla
-  const mealsByType = {
-    "Kahvaltı": groupedMeals.todayMeals.filter(m => m.type === "Kahvaltı"),
-    "Öğle": groupedMeals.todayMeals.filter(m => m.type === "Öğle"),
-    "Akşam": groupedMeals.todayMeals.filter(m => m.type === "Akşam"),
-    "Atıştırmalık": groupedMeals.todayMeals.filter(m => m.type === "Atıştırmalık")
-  };
+  const stats = useMemo(() => {
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFat = 0;
+
+    // Tek loop ile tüm istatistikleri hesapla - çok daha hızlı
+    for (let i = 0; i < activeFilterMeals.length; i++) {
+      const meal = activeFilterMeals[i];
+      totalCalories += meal.calories;
+      totalProtein += meal.protein ?? 0;
+      totalCarbs += meal.carbs ?? 0;
+      totalFat += meal.fat ?? 0;
+    }
+
+    return { totalCalories, totalProtein, totalCarbs, totalFat };
+  }, [activeFilterMeals]);
+
+  const caloriePercentage = useMemo(() => Math.min((stats.totalCalories / dailyGoal) * 100, 100), [stats.totalCalories, dailyGoal]);
+
+  // Aktif filtreye göre öğünleri tipe göre grupla - Sadece bugün için
+  const mealsByType = useMemo(() => {
+    if (activeFilter !== 'today') return null;
+    
+    return {
+      "Kahvaltı": groupedMeals.todayMeals.filter(m => m.type === "Kahvaltı"),
+      "Öğle": groupedMeals.todayMeals.filter(m => m.type === "Öğle"),
+      "Akşam": groupedMeals.todayMeals.filter(m => m.type === "Akşam"),
+      "Atıştırmalık": groupedMeals.todayMeals.filter(m => m.type === "Atıştırmalık")
+    };
+  }, [activeFilter, groupedMeals.todayMeals]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-red-50 p-6">
@@ -526,11 +565,38 @@ export default function Kalori() {
             <p className="text-gray-600">Günlük kalori alımını takip et, sağlıklı kal</p>
           </div>
           
-          {/* Toplam Kayıt Sayısı */}
-          <div className="text-center">
-            <p className="text-sm font-semibold text-gray-600">
-              📋 Toplam {meals.length} Kayıt
-            </p>
+          {/* Filtre Butonları */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveFilter('today')}
+              className={`px-4 py-2 rounded-xl font-semibold transition-all ${
+                activeFilter === 'today'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg scale-105'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              🌟 Bugün
+            </button>
+            <button
+              onClick={() => setActiveFilter('yesterday')}
+              className={`px-4 py-2 rounded-xl font-semibold transition-all ${
+                activeFilter === 'yesterday'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg scale-105'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              📅 Dün
+            </button>
+            <button
+              onClick={() => setActiveFilter('week')}
+              className={`px-4 py-2 rounded-xl font-semibold transition-all ${
+                activeFilter === 'week'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg scale-105'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              📆 Bu Hafta
+            </button>
           </div>
         </div>
       </div>
@@ -543,24 +609,24 @@ export default function Kalori() {
                 Toplam
               </span>
             </div>
-            <div className="text-3xl font-bold text-orange-600 mb-1">{totalCalories}</div>
-            <p className="text-sm text-gray-600">Kalori (Bugün)</p>
+            <div className="text-3xl font-bold text-orange-600 mb-1">{stats.totalCalories}</div>
+            <p className="text-sm text-gray-600">Kalori</p>
             <div className="mt-2 text-xs text-gray-500">Hedef: {dailyGoal}</div>
-            <div className="mt-2 text-xs font-semibold text-orange-600">{groupedMeals.todayMeals.length} öğün</div>
+            <div className="mt-2 text-xs font-semibold text-orange-600">{activeFilterMeals.length} öğün</div>
           </div>
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="text-3xl mb-2">🥩</div>
-            <div className="text-3xl font-bold text-red-600 mb-1">{totalProtein}g</div>
+            <div className="text-3xl font-bold text-red-600 mb-1">{stats.totalProtein}g</div>
             <p className="text-sm text-gray-600">Protein</p>
           </div>
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="text-3xl mb-2">🍞</div>
-            <div className="text-3xl font-bold text-yellow-600 mb-1">{totalCarbs}g</div>
+            <div className="text-3xl font-bold text-yellow-600 mb-1">{stats.totalCarbs}g</div>
             <p className="text-sm text-gray-600">Karbonhidrat</p>
           </div>
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="text-3xl mb-2">🥑</div>
-            <div className="text-3xl font-bold text-green-600 mb-1">{totalFat}g</div>
+            <div className="text-3xl font-bold text-green-600 mb-1">{stats.totalFat}g</div>
             <p className="text-sm text-gray-600">Yağ</p>
           </div>
         </div>
@@ -577,7 +643,7 @@ export default function Kalori() {
           <div className="relative w-full h-8 bg-gray-200 rounded-full overflow-hidden">
             <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 transition-all duration-500" style={{ width: `${caloriePercentage}%` }} />
             <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-gray-700">
-              {totalCalories} / {dailyGoal} kcal ({Math.round(caloriePercentage)}%)
+              {stats.totalCalories} / {dailyGoal} kcal ({Math.round(caloriePercentage)}%)
             </div>
           </div>
         </div>
@@ -724,13 +790,14 @@ export default function Kalori() {
         </div>
 
         <div className="space-y-8">
-          {/* Bugünün Öğünleri */}
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span>🌟</span> Bugün
-            </h2>
-            <div className="space-y-6">
-              {Object.entries(mealsByType).map(([type, typeMeals]) => (
+          {/* Aktif Filtre - Bugün */}
+          {activeFilter === 'today' && mealsByType && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span>🌟</span> Bugün
+              </h2>
+              <div className="space-y-6">
+                {Object.entries(mealsByType).map(([type, typeMeals]) => (
                 <div key={type} className="bg-white rounded-2xl shadow-lg p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold text-gray-800">
@@ -791,19 +858,26 @@ export default function Kalori() {
                     ))}
                   </div>
                 )}
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+          )}
 
-        {/* Dünün Kayıtları */}
-        {groupedMeals.yesterdayMeals.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span>📅</span> Dün
-            </h2>
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="space-y-3">
+          {/* Aktif Filtre - Dün */}
+          {activeFilter === 'yesterday' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span>📅</span> Dün
+              </h2>
+              {groupedMeals.yesterdayMeals.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+                  <div className="text-6xl mb-4">🍽️</div>
+                  <p className="text-gray-500 text-lg">Dün hiç öğün kaydı yok</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl shadow-lg p-6">
+                  <div className="space-y-3">
                 {groupedMeals.yesterdayMeals.map((meal) => (
                   <div key={meal.id} className="group relative flex items-center gap-4 p-5 bg-gradient-to-r from-white via-gray-50 to-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-gray-200 hover:border-purple-300" onClick={() => {
                     const mealWithDetails = {
@@ -838,20 +912,27 @@ export default function Kalori() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Bu Haftanın Kayıtları */}
-        {groupedMeals.thisWeekMeals.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span>📆</span> Bu Hafta
-            </h2>
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="space-y-3">
+          {/* Aktif Filtre - Bu Hafta */}
+          {activeFilter === 'week' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span>📆</span> Bu Hafta (Son 7 Gün)
+              </h2>
+              {activeFilterMeals.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+                  <div className="text-6xl mb-4">🍽️</div>
+                  <p className="text-gray-500 text-lg">Bu hafta hiç öğün kaydı yok</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl shadow-lg p-6">
+                  <div className="space-y-3">
                 {groupedMeals.thisWeekMeals.map((meal) => (
                   <div key={meal.id} className="group relative flex items-center gap-4 p-5 bg-gradient-to-r from-white via-gray-50 to-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-gray-200 hover:border-purple-300" onClick={() => {
                     const mealWithDetails = {
@@ -887,12 +968,13 @@ export default function Kalori() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
       {/* Camera Modal */}
       {showCamera && (
