@@ -47,6 +47,29 @@ export default function Meditasyon() {
     checkUser();
   }, []);
 
+  // Real-time subscription - Yeni meditasyon eklenince otomatik güncelle
+  useEffect(() => {
+    const channel = supabase
+      .channel('meditation-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meditation_sessions'
+        },
+        (payload) => {
+          console.log('Meditation değişikliği algılandı:', payload);
+          loadSessions(); // Otomatik yenile
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

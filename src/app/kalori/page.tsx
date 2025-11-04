@@ -50,6 +50,29 @@ export default function Kalori() {
     checkUser();
   }, []);
 
+  // Real-time subscription - Yeni meal eklendiğinde otomatik güncelle
+  useEffect(() => {
+    const channel = supabase
+      .channel('meals-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meals'
+        },
+        (payload) => {
+          console.log('Meal değişikliği algılandı:', payload);
+          loadMeals(); // Otomatik yenile
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -72,7 +95,7 @@ export default function Kalori() {
       .select('id, name, calories, protein, carbs, fat, meal_type, date, image, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(30); // Son 30 kayıt - çok daha hızlı!
+      .limit(100); // Son 100 kayıt - geçmiş için
 
     if (error) {
       console.error('Meals yükleme hatası:', error);
@@ -451,20 +474,46 @@ export default function Kalori() {
     return "Atıştırmalık";
   };
 
-  // Tüm yemekleri göster (filtre yok)
-  const filteredMeals = useMemo(() => meals, [meals]);
-  const totalCalories = useMemo(() => filteredMeals.reduce((sum, meal) => sum + meal.calories, 0), [filteredMeals]);
-  const totalProtein = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0), [filteredMeals]);
-  const totalCarbs = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0), [filteredMeals]);
-  const totalFat = useMemo(() => filteredMeals.reduce((sum, meal) => sum + (meal.fat ?? 0), 0), [filteredMeals]);
+  // Geçmiş kayıtları tarihe göre grupla: Bugün, Dün, Bu Hafta
+  const groupedMeals = useMemo(() => {
+    const now = new Date();
+    const today = now.toLocaleDateString('tr-TR');
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toLocaleDateString('tr-TR');
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const todayMeals: Meal[] = [];
+    const yesterdayMeals: Meal[] = [];
+    const thisWeekMeals: Meal[] = [];
+
+    meals.forEach(meal => {
+      if (meal.date === today) {
+        todayMeals.push(meal);
+      } else if (meal.date === yesterday) {
+        yesterdayMeals.push(meal);
+      } else {
+        const mealDate = new Date(meal.date.split('.').reverse().join('-'));
+        if (mealDate >= weekAgo) {
+          thisWeekMeals.push(meal);
+        }
+      }
+    });
+
+    return { todayMeals, yesterdayMeals, thisWeekMeals };
+  }, [meals]);
+
+  // Sadece bugünün istatistikleri
+  const totalCalories = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + meal.calories, 0), [groupedMeals.todayMeals]);
+  const totalProtein = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + (meal.protein ?? 0), 0), [groupedMeals.todayMeals]);
+  const totalCarbs = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + (meal.carbs ?? 0), 0), [groupedMeals.todayMeals]);
+  const totalFat = useMemo(() => groupedMeals.todayMeals.reduce((sum, meal) => sum + (meal.fat ?? 0), 0), [groupedMeals.todayMeals]);
   const caloriePercentage = useMemo(() => Math.min((totalCalories / dailyGoal) * 100, 100), [totalCalories, dailyGoal]);
 
-  // Filtrelenmiş öğünleri tipe göre grupla
+  // Bugünün öğünlerini tipe göre grupla
   const mealsByType = {
-    "Kahvaltı": filteredMeals.filter(m => m.type === "Kahvaltı"),
-    "Öğle": filteredMeals.filter(m => m.type === "Öğle"),
-    "Akşam": filteredMeals.filter(m => m.type === "Akşam"),
-    "Atıştırmalık": filteredMeals.filter(m => m.type === "Atıştırmalık")
+    "Kahvaltı": groupedMeals.todayMeals.filter(m => m.type === "Kahvaltı"),
+    "Öğle": groupedMeals.todayMeals.filter(m => m.type === "Öğle"),
+    "Akşam": groupedMeals.todayMeals.filter(m => m.type === "Akşam"),
+    "Atıştırmalık": groupedMeals.todayMeals.filter(m => m.type === "Atıştırmalık")
   };
 
   return (
@@ -477,10 +526,10 @@ export default function Kalori() {
             <p className="text-gray-600">Günlük kalori alımını takip et, sağlıklı kal</p>
           </div>
           
-          {/* Geçmiş Kayıtlar Başlığı */}
+          {/* Toplam Kayıt Sayısı */}
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-600">
-              📋 Tüm Geçmiş Kayıtlar
+              📋 Toplam {meals.length} Kayıt
             </p>
           </div>
         </div>
@@ -495,9 +544,9 @@ export default function Kalori() {
               </span>
             </div>
             <div className="text-3xl font-bold text-orange-600 mb-1">{totalCalories}</div>
-            <p className="text-sm text-gray-600">Kalori</p>
+            <p className="text-sm text-gray-600">Kalori (Bugün)</p>
             <div className="mt-2 text-xs text-gray-500">Hedef: {dailyGoal}</div>
-            <div className="mt-2 text-xs font-semibold text-orange-600">{filteredMeals.length} öğün</div>
+            <div className="mt-2 text-xs font-semibold text-orange-600">{groupedMeals.todayMeals.length} öğün</div>
           </div>
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="text-3xl mb-2">🥩</div>
@@ -674,21 +723,35 @@ export default function Kalori() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {Object.entries(mealsByType).map(([type, typeMeals]) => (
-            <div key={type} className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-800">
-                  {type === "Kahvaltı" && "🌅"}{type === "Öğle" && "☀️"}{type === "Akşam" && "🌙"}{type === "Atıştırmalık" && "🍎"} {type}
-                </h3>
-                <div className="text-sm font-semibold text-gray-600">{typeMeals.reduce((sum, m) => sum + m.calories, 0)} kcal</div>
-              </div>
-              {typeMeals.length === 0 ? (
-                <div className="text-center py-8 text-gray-400"><p>Henüz {type.toLowerCase()} eklenmemiş</p></div>
-              ) : (
-                <div className="space-y-3">
-                  {typeMeals.map((meal) => (
-                    <div key={meal.id} className="group relative flex items-center gap-4 p-5 bg-gradient-to-r from-white via-gray-50 to-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-gray-200 hover:border-purple-300" onClick={() => setSelectedMealDetail(meal)}>
+        <div className="space-y-8">
+          {/* Bugünün Öğünleri */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>🌟</span> Bugün
+            </h2>
+            <div className="space-y-6">
+              {Object.entries(mealsByType).map(([type, typeMeals]) => (
+                <div key={type} className="bg-white rounded-2xl shadow-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">
+                      {type === "Kahvaltı" && "🌅"}{type === "Öğle" && "☀️"}{type === "Akşam" && "🌙"}{type === "Atıştırmalık" && "🍎"} {type}
+                    </h3>
+                    <div className="text-sm font-semibold text-gray-600">{typeMeals.reduce((sum, m) => sum + m.calories, 0)} kcal</div>
+                  </div>
+                  {typeMeals.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400"><p>Henüz {type.toLowerCase()} eklenmemiş</p></div>
+                  ) : (
+                    <div className="space-y-3">
+                      {typeMeals.map((meal) => (
+                        <div key={meal.id} className="group relative flex items-center gap-4 p-5 bg-gradient-to-r from-white via-gray-50 to-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-gray-200 hover:border-purple-300" onClick={() => {
+                          // Detay açılırken coachTips ve burnEstimate hesapla
+                          const mealWithDetails = {
+                            ...meal,
+                            coachTips: generateCoachTips(meal),
+                            burnEstimate: calculateBurnEstimate(meal.calories)
+                          };
+                          setSelectedMealDetail(mealWithDetails);
+                        }}>
                       {meal.image && (
                         <div className="relative">
                           <img src={meal.image} alt={meal.name} className="w-24 h-24 rounded-2xl object-cover shadow-md ring-2 ring-white group-hover:ring-purple-300 transition-all duration-300" />
@@ -715,22 +778,121 @@ export default function Kalori() {
                           </div>
                         )}
                       </div>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); if(confirm('İptal edilemez! Silmek istediğinize emin misiniz?')) deleteMeal(meal.id); }} 
-                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-110 transform"
-                        title="Sil"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); if(confirm('İptal edilemez! Silmek istediğinize emin misiniz?')) deleteMeal(meal.id); }} 
+                          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-110 transform"
+                          title="Sil"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* Dünün Kayıtları */}
+        {groupedMeals.yesterdayMeals.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>📅</span> Dün
+            </h2>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="space-y-3">
+                {groupedMeals.yesterdayMeals.map((meal) => (
+                  <div key={meal.id} className="group relative flex items-center gap-4 p-5 bg-gradient-to-r from-white via-gray-50 to-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-gray-200 hover:border-purple-300" onClick={() => {
+                    const mealWithDetails = {
+                      ...meal,
+                      coachTips: generateCoachTips(meal),
+                      burnEstimate: calculateBurnEstimate(meal.calories)
+                    };
+                    setSelectedMealDetail(mealWithDetails);
+                  }}>
+                    {meal.image && (
+                      <div className="relative">
+                        <img src={meal.image} alt={meal.name} className="w-24 h-24 rounded-2xl object-cover shadow-md ring-2 ring-white group-hover:ring-purple-300 transition-all duration-300" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-bold text-gray-800 text-xl group-hover:text-purple-700 transition-colors duration-300">{meal.name}</h4>
+                        <div className="flex gap-2">
+                          <span className="text-sm text-gray-500 font-semibold bg-purple-50 px-3 py-1 rounded-full">⏰ {meal.time}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 text-sm font-semibold mb-2">
+                        <span className="flex items-center gap-1 bg-orange-50 text-orange-700 px-3 py-1 rounded-lg">🔥 {meal.calories}</span>
+                        <span className="flex items-center gap-1 bg-red-50 text-red-700 px-3 py-1 rounded-lg">🥩 {meal.protein}g</span>
+                        <span className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-3 py-1 rounded-lg">🍞 {meal.carbs}g</span>
+                        <span className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-lg">🥑 {meal.fat}g</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-purple-600 font-semibold bg-purple-50 px-3 py-1.5 rounded-lg inline-flex">
+                        <span className="animate-pulse">🧠</span>
+                        <span>Detaylı analiz için tıklayın</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bu Haftanın Kayıtları */}
+        {groupedMeals.thisWeekMeals.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>📆</span> Bu Hafta
+            </h2>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="space-y-3">
+                {groupedMeals.thisWeekMeals.map((meal) => (
+                  <div key={meal.id} className="group relative flex items-center gap-4 p-5 bg-gradient-to-r from-white via-gray-50 to-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-gray-200 hover:border-purple-300" onClick={() => {
+                    const mealWithDetails = {
+                      ...meal,
+                      coachTips: generateCoachTips(meal),
+                      burnEstimate: calculateBurnEstimate(meal.calories)
+                    };
+                    setSelectedMealDetail(mealWithDetails);
+                  }}>
+                    {meal.image && (
+                      <div className="relative">
+                        <img src={meal.image} alt={meal.name} className="w-24 h-24 rounded-2xl object-cover shadow-md ring-2 ring-white group-hover:ring-purple-300 transition-all duration-300" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-bold text-gray-800 text-xl group-hover:text-purple-700 transition-colors duration-300">{meal.name}</h4>
+                        <div className="flex gap-2">
+                          <span className="text-sm text-gray-500 font-semibold bg-purple-50 px-3 py-1 rounded-full">📅 {meal.date}</span>
+                          <span className="text-sm text-gray-500 font-semibold bg-purple-50 px-3 py-1 rounded-full">⏰ {meal.time}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 text-sm font-semibold mb-2">
+                        <span className="flex items-center gap-1 bg-orange-50 text-orange-700 px-3 py-1 rounded-lg">🔥 {meal.calories}</span>
+                        <span className="flex items-center gap-1 bg-red-50 text-red-700 px-3 py-1 rounded-lg">🥩 {meal.protein}g</span>
+                        <span className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-3 py-1 rounded-lg">🍞 {meal.carbs}g</span>
+                        <span className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-lg">🥑 {meal.fat}g</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-purple-600 font-semibold bg-purple-50 px-3 py-1.5 rounded-lg inline-flex">
+                        <span className="animate-pulse">🧠</span>
+                        <span>Detaylı analiz için tıklayın</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Camera Modal */}
       {showCamera && (

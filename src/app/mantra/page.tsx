@@ -76,6 +76,29 @@ export default function Mantra() {
     checkUser();
   }, []);
 
+  // Real-time subscription - Yeni mantra eklenince otomatik güncelle
+  useEffect(() => {
+    const channel = supabase
+      .channel('mantras-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mantras'
+        },
+        (payload) => {
+          console.log('Mantra değişikliği algılandı:', payload);
+          loadMantras(); // Otomatik yenile
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

@@ -52,6 +52,68 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Real-time subscriptions - Tüm tabloları dinle
+  useEffect(() => {
+    if (!user) return;
+
+    const mealsChannel = supabase
+      .channel('dashboard-meals')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meals' },
+        () => {
+          console.log('Meals değişti, stats güncelleniyor');
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    const meditationChannel = supabase
+      .channel('dashboard-meditation')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meditation_sessions' },
+        () => {
+          console.log('Meditation değişti, stats güncelleniyor');
+          loadStats();
+          loadActivities();
+        }
+      )
+      .subscribe();
+
+    const mantrasChannel = supabase
+      .channel('dashboard-mantras')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mantras' },
+        () => {
+          console.log('Mantras değişti, stats güncelleniyor');
+          loadStats();
+          loadActivities();
+        }
+      )
+      .subscribe();
+
+    const courseChannel = supabase
+      .channel('dashboard-courses')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'course_progress' },
+        () => {
+          console.log('Course progress değişti, stats güncelleniyor');
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(mealsChannel);
+      supabase.removeChannel(meditationChannel);
+      supabase.removeChannel(mantrasChannel);
+      supabase.removeChannel(courseChannel);
+    };
+  }, [user]);
+
   const checkUser = useCallback(async () => {
     if (!user) return;
     loadStats();
