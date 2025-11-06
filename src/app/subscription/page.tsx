@@ -21,6 +21,7 @@ export default function Subscription() {
   const [loading, setLoading] = useState(true);
   const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
   const [showFAQ, setShowFAQ] = useState<number | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
 
   useEffect(() => {
     checkUser();
@@ -167,6 +168,21 @@ export default function Subscription() {
       answer: "Unlimited paket kullanıcıları VIP Badge, erken erişim özellikleri ve öncelikli destek hizmeti alır. Yeni özellikler ilk sizlere sunulur ve destek talepleriniz öncelikli olarak yanıtlanır."
     }
   ];
+
+  // Ek paketlerin gösterilip gösterilmeyeceğini kontrol et
+  const shouldShowAdditionalPackages = () => {
+    // Admin her zaman görsün
+    const isAdmin = userEmail === 'websimurg@gmail.com';
+    if (isAdmin) return true;
+
+    // Kredisi biten kullanıcılar görsün
+    if (userSubscription) {
+      const hasNoCredits = userSubscription.message_credits <= 0 || userSubscription.calorie_credits <= 0;
+      return hasNoCredits;
+    }
+
+    return false;
+  };
 
   const handlePurchase = async (packageId: string) => {
     alert("Ödeme sistemi yakında aktif olacak! Şu an için sadece önizleme modunda.");
@@ -319,12 +335,13 @@ export default function Subscription() {
           </div>
         </div>
 
-        {/* Ek Mesaj Paketleri */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">💰 Ek Mesaj Paketleri</h2>
-            <p className="text-gray-600">Mesaj haklarınız bittiğinde ek paketler alabilirsiniz</p>
-          </div>
+        {/* Ek Mesaj Paketleri - Sadece kredi bitenlere veya admin'e göster */}
+        {shouldShowAdditionalPackages() && (
+          <div className="mb-12">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">💰 Ek Mesaj Paketleri</h2>
+              <p className="text-gray-600">Mesaj haklarınız bittiğinde ek paketler alabilirsiniz</p>
+            </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-8">
             {additionalPackages.map((pkg) => (
@@ -362,6 +379,7 @@ export default function Subscription() {
             ))}
           </div>
         </div>
+        )}
 
         {/* SSS Bölümü */}
         <div className="mb-12">
