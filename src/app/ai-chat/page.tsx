@@ -179,6 +179,23 @@ export default function AIChat() {
     const messageToSend = customMessage || input;
     if (!messageToSend.trim() || isLoading) return;
     
+    // Mesaj kredisi kontrolü
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const creditCheckResponse = await fetch('/api/check-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, creditType: 'message' })
+    });
+
+    const creditData = await creditCheckResponse.json();
+    
+    if (!creditData.hasCredit) {
+      alert('❌ Mesaj hakkınız kalmadı!\n\n💎 Premium paketi satın alarak 50 mesaj hakkı kazanabilirsiniz.\n📦 Veya ek paketlerden 10$\'dan başlayan fiyatlarla mesaj hakkı ekleyebilirsiniz.\n\n🔗 /subscription sayfasından paketleri inceleyebilirsiniz.');
+      return;
+    }
+    
     // Sentry breadcrumb ekle (hata durumunda devam et)
     try {
       Sentry.addBreadcrumb({
@@ -187,6 +204,7 @@ export default function AIChat() {
         level: 'info',
         data: {
           messageLength: messageToSend.length,
+          remainingCredits: creditData.remaining
         },
       });
     } catch (e) {
@@ -243,6 +261,13 @@ export default function AIChat() {
       if (data.userLearnings) {
         updateUserProfile(data.userLearnings);
       }
+      
+      // Kredi kullan
+      await fetch('/api/use-credit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, creditType: 'message' })
+      });
       
       // Chat'i kaydet
       setTimeout(() => saveCurrentChat(), 500);

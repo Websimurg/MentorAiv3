@@ -42,6 +42,7 @@ export default function Kalori() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLoadingMeals, setIsLoadingMeals] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'today' | 'yesterday' | 'week'>('today');
+  const [calorieCredits, setCalorieCredits] = useState<number>(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
@@ -80,6 +81,22 @@ export default function Kalori() {
       return;
     }
     loadMeals();
+    loadCalorieCredits();
+  };
+  
+  const loadCalorieCredits = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from('user_subscriptions')
+      .select('calorie_credits')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (data) {
+      setCalorieCredits(data.calorie_credits || 0);
+    }
   };
 
   const loadMeals = useCallback(async () => {
@@ -306,6 +323,24 @@ export default function Kalori() {
     console.log('📷 Image prefix:', image.substring(0, 50));
     console.log('📝 File name:', fileName);
     
+    // Kalori kredisi kontrolü
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const creditCheckResponse = await fetch('/api/check-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, creditType: 'calorie' })
+    });
+
+    const creditData = await creditCheckResponse.json();
+    
+    if (!creditData.hasCredit) {
+      alert('❌ Kalori ölçüm hakkınız kalmadı!\n\n💎 Premium paketi satın alarak ayda 3 ücretsiz analiz hakkı kazanabilirsiniz.\n📦 Veya ek paketlerden kalori ölçüm hakkı ekleyebilirsiniz.\n\n🔗 /subscription sayfasından paketleri inceleyebilirsiniz.');
+      setSelectedImage(null);
+      return;
+    }
+    
     setIsAnalyzing(true);
     try {
       console.log('🚀 API\'ye istek gönderiliyor...');
@@ -345,6 +380,18 @@ export default function Kalori() {
       // Kalori Takip Öneri - Akıllı öneriler oluştur
       const coachTips = generateCoachTips(newMeal);
       const burnEstimate = calculateBurnEstimate(newMeal.calories);
+      
+      // Kredi kullan ve güncelle
+      const useCreditResponse = await fetch('/api/use-credit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, creditType: 'calorie' })
+      });
+      
+      const useCreditData = await useCreditResponse.json();
+      if (useCreditData.success) {
+        setCalorieCredits(useCreditData.remaining);
+      }
       
       setAnalyzedMeal({...newMeal, coachTips, burnEstimate});
     } catch (error) {
