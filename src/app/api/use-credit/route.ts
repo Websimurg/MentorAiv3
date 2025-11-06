@@ -48,17 +48,47 @@ export async function POST(request: NextRequest) {
     }
 
     // Kullanıcının aboneliğini al
-    const { data: subscription, error: fetchError } = await supabase
+    let { data: subscription, error: fetchError } = await supabase
       .from('user_subscriptions')
       .select('*')
       .eq('user_id', userId)
       .single();
 
+    // Eğer abonelik yoksa, otomatik oluştur
     if (fetchError || !subscription) {
-      return NextResponse.json(
-        { success: false, error: 'Abonelik bulunamadı' },
-        { status: 404 }
-      );
+      const subscriptionData = isAdmin ? {
+        user_id: userId,
+        plan_type: 'unlimited',
+        status: 'active',
+        message_credits: 999999,
+        calorie_credits: 999999,
+        is_unlimited: true,
+        start_date: new Date().toISOString()
+      } : {
+        user_id: userId,
+        plan_type: 'free',
+        status: 'active',
+        message_credits: 10,
+        calorie_credits: 3,
+        is_unlimited: false,
+        start_date: new Date().toISOString()
+      };
+
+      const { data: newSubscription, error: createError } = await supabase
+        .from('user_subscriptions')
+        .insert(subscriptionData)
+        .select()
+        .single();
+
+      if (createError || !newSubscription) {
+        console.error('Subscription creation error:', createError);
+        return NextResponse.json(
+          { success: false, error: 'Abonelik oluşturulamadı' },
+          { status: 500 }
+        );
+      }
+
+      subscription = newSubscription;
     }
 
     // Unlimited paket için kredi düşürme

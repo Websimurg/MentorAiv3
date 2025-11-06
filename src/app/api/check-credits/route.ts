@@ -39,17 +39,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Kullanıcının aboneliğini kontrol et
-    const { data: subscription, error } = await supabase
+    let { data: subscription, error } = await supabase
       .from('user_subscriptions')
       .select('*')
       .eq('user_id', userId)
       .single();
 
+    // Eğer abonelik yoksa, otomatik oluştur (ilk kullanım)
     if (error || !subscription) {
-      return NextResponse.json(
-        { hasCredit: false, remaining: 0, error: 'Abonelik bulunamadı' },
-        { status: 404 }
-      );
+      const { data: newSubscription, error: createError } = await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: userId,
+          plan_type: 'free',
+          status: 'active',
+          message_credits: 10,
+          calorie_credits: 3,
+          is_unlimited: false,
+          start_date: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (createError || !newSubscription) {
+        return NextResponse.json(
+          { hasCredit: false, remaining: 0, error: 'Abonelik oluşturulamadı' },
+          { status: 500 }
+        );
+      }
+
+      subscription = newSubscription;
     }
 
     // Unlimited paket kontrolü
