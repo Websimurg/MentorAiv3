@@ -47,21 +47,33 @@ export async function POST(request: NextRequest) {
 
     // Eğer abonelik yoksa, otomatik oluştur (ilk kullanım)
     if (error || !subscription) {
+      // Admin için unlimited, diğerleri için free
+      const subscriptionData = isAdmin ? {
+        user_id: userId,
+        plan_type: 'unlimited',
+        status: 'active',
+        message_credits: 999999,
+        calorie_credits: 999999,
+        is_unlimited: true,
+        start_date: new Date().toISOString()
+      } : {
+        user_id: userId,
+        plan_type: 'free',
+        status: 'active',
+        message_credits: 10,
+        calorie_credits: 3,
+        is_unlimited: false,
+        start_date: new Date().toISOString()
+      };
+
       const { data: newSubscription, error: createError } = await supabase
         .from('user_subscriptions')
-        .insert({
-          user_id: userId,
-          plan_type: 'free',
-          status: 'active',
-          message_credits: 10,
-          calorie_credits: 3,
-          is_unlimited: false,
-          start_date: new Date().toISOString()
-        })
+        .insert(subscriptionData)
         .select()
         .single();
 
       if (createError || !newSubscription) {
+        console.error('Subscription creation error:', createError);
         return NextResponse.json(
           { hasCredit: false, remaining: 0, error: 'Abonelik oluşturulamadı' },
           { status: 500 }
