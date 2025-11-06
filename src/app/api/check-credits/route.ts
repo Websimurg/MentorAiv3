@@ -18,6 +18,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Admin kontrolü - websimurg@gmail.com sınırsız erişim
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, role')
+      .eq('id', userId)
+      .single();
+
+    const isAdmin = userProfile?.email === 'websimurg@gmail.com' || userProfile?.role === 'admin';
+
+    if (isAdmin) {
+      return NextResponse.json({
+        hasCredit: true,
+        remaining: -1, // Sınırsız
+        planType: 'admin',
+        status: 'active',
+        isUnlimited: true,
+        isAdmin: true
+      });
+    }
+
     // Kullanıcının aboneliğini kontrol et
     const { data: subscription, error } = await supabase
       .from('user_subscriptions')

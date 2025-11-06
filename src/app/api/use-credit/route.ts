@@ -18,6 +18,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Admin kontrolü - websimurg@gmail.com sınırsız erişim
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, role')
+      .eq('id', userId)
+      .single();
+
+    const isAdmin = userProfile?.email === 'websimurg@gmail.com' || userProfile?.role === 'admin';
+
+    if (isAdmin) {
+      // Admin için kredi düşürme, sadece log
+      await supabase
+        .from('usage_logs')
+        .insert({
+          user_id: userId,
+          usage_type: creditType,
+          credits_used: 1,
+          remaining_credits: -1 // Sınırsız
+        });
+
+      return NextResponse.json({
+        success: true,
+        remaining: -1,
+        isUnlimited: true,
+        isAdmin: true,
+        message: `${creditType} kullanıldı (Admin - Sınırsız)`
+      });
+    }
+
     // Kullanıcının aboneliğini al
     const { data: subscription, error: fetchError } = await supabase
       .from('user_subscriptions')
@@ -30,6 +59,26 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Abonelik bulunamadı' },
         { status: 404 }
       );
+    }
+
+    // Unlimited paket için kredi düşürme
+    if (subscription.is_unlimited) {
+      // Kullanım logu oluştur (istatistikler için)
+      await supabase
+        .from('usage_logs')
+        .insert({
+          user_id: userId,
+          usage_type: creditType,
+          credits_used: 1,
+          remaining_credits: -1 // sınırsız
+        });
+
+      return NextResponse.json({
+        success: true,
+        remaining: -1, // sınırsız
+        isUnlimited: true,
+        message: `${creditType} kullanıldı (Unlimited)`
+      });
     }
 
     const fieldName = creditType === 'message' ? 'message_credits' : 'calorie_credits';
