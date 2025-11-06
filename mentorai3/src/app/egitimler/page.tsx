@@ -38,6 +38,46 @@ export default function Egitimler() {
     checkUser();
   }, []);
 
+  // Real-time subscriptions - Kurslar ve ilerleme değişince otomatik güncelle
+  useEffect(() => {
+    const coursesChannel = supabase
+      .channel('courses-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'courses'
+        },
+        (payload) => {
+          console.log('Courses değişikliği algılandı:', payload);
+          loadCourses(); // Otomatik yenile
+        }
+      )
+      .subscribe();
+
+    const progressChannel = supabase
+      .channel('course-progress-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'course_progress'
+        },
+        (payload) => {
+          console.log('Course progress değişikliği algılandı:', payload);
+          loadCourses(); // Otomatik yenile
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(coursesChannel);
+      supabase.removeChannel(progressChannel);
+    };
+  }, []);
+
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

@@ -15,6 +15,20 @@ interface User {
   isAdmin?: boolean;
 }
 
+interface UserSubscription {
+  id: string;
+  user_id: string;
+  user_email: string;
+  user_name: string;
+  plan_type: 'free' | 'standard' | 'unlimited';
+  status: 'active' | 'expired' | 'cancelled';
+  message_credits: number;
+  calorie_credits: number;
+  is_unlimited: boolean;
+  start_date: string;
+  created_at: string;
+}
+
 interface Lesson {
   id: string;
   title: string;
@@ -45,7 +59,7 @@ interface Stats {
 export default function AdminDashboard() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
-  const [activeTab, setActiveTab] = useState<"stats" | "users" | "courses" | "settings">("stats");
+  const [activeTab, setActiveTab] = useState<"stats" | "users" | "subscriptions" | "courses" | "settings">("stats");
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<Stats>({
@@ -62,6 +76,17 @@ export default function AdminDashboard() {
   const [newLesson, setNewLesson] = useState({ title: "", videoUrl: "", duration: "" });
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userEditData, setUserEditData] = useState({ name: "", email: "", isPremium: false, isAdmin: false });
+  
+  // Subscription yönetimi
+  const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([]);
+  const [editingSubscription, setEditingSubscription] = useState<UserSubscription | null>(null);
+  const [subscriptionEditData, setSubscriptionEditData] = useState({
+    plan_type: 'free' as 'free' | 'standard' | 'unlimited',
+    message_credits: 0,
+    calorie_credits: 0,
+    is_unlimited: false,
+    status: 'active' as 'active' | 'expired' | 'cancelled'
+  });
   
   // Sistem ayarları
   const [settings, setSettings] = useState({
@@ -84,6 +109,7 @@ export default function AdminDashboard() {
     if (user) {
       checkAdmin();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
   
   // Sayfa yüklenince verileri çek
@@ -92,7 +118,47 @@ export default function AdminDashboard() {
       console.log('🔄 Users tab aktif, veriler yüklenecek...');
       loadData();
     }
+    if (user && activeTab === 'subscriptions') {
+      console.log('🔄 Subscriptions tab aktif, veriler yüklenecek...');
+      loadSubscriptions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, user]);
+
+  const loadSubscriptions = async () => {
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .select(`
+        *,
+        profiles:user_id (
+          email,
+          name
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Subscription yükleme hatası:', error);
+      return;
+    }
+
+    if (data) {
+      const formattedSubscriptions: UserSubscription[] = data.map((sub: any) => ({
+        id: sub.id,
+        user_id: sub.user_id,
+        user_email: sub.profiles?.email || 'Bilinmiyor',
+        user_name: sub.profiles?.name || 'Bilinmiyor',
+        plan_type: sub.plan_type,
+        status: sub.status,
+        message_credits: sub.message_credits,
+        calorie_credits: sub.calorie_credits,
+        is_unlimited: sub.is_unlimited,
+        start_date: sub.start_date,
+        created_at: sub.created_at
+      }));
+      setSubscriptions(formattedSubscriptions);
+    }
+  };
 
   const toggleUserAdmin = async (userId: string, currentAdminStatus: boolean) => {
     const confirmMsg = currentAdminStatus 
@@ -133,8 +199,95 @@ export default function AdminDashboard() {
       return;
     }
 
-    alert(currentPremiumStatus ? '✅ Premium üyelik kaldırıldı!' : '✅ Kullanıcı premium yapıldı!');
+    alert('✅ İşlem başarılı!');
     loadData();
+  };
+
+  // Subscription düzenleme fonksiyonları
+  const openEditSubscription = (subscription: UserSubscription) => {
+    setEditingSubscription(subscription);
+    setSubscriptionEditData({
+      plan_type: subscription.plan_type,
+      message_credits: subscription.message_credits,
+      calorie_credits: subscription.calorie_credits,
+      is_unlimited: subscription.is_unlimited,
+      status: subscription.status
+    });
+  };
+
+  const updateSubscription = async () => {
+    if (!editingSubscription) return;
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({
+        plan_type: subscriptionEditData.plan_type,
+        message_credits: subscriptionEditData.message_credits,
+        calorie_credits: subscriptionEditData.calorie_credits,
+        is_unlimited: subscriptionEditData.is_unlimited,
+        status: subscriptionEditData.status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', editingSubscription.id);
+
+    if (error) {
+      alert('Hata: ' + error.message);
+      return;
+    }
+
+    alert('✅ Abonelik güncellendi!');
+    setEditingSubscription(null);
+    loadSubscriptions();
+  };
+
+  const addCredits = async (subscriptionId: string, creditType: 'message' | 'calorie', amount: number) => {
+    const subscription = subscriptions.find(s => s.id === subscriptionId);
+    if (!subscription) return;
+
+    const fieldName = creditType === 'message' ? 'message_credits' : 'calorie_credits';
+    const newAmount = subscription[fieldName] + amount;
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({ [fieldName]: newAmount })
+      .eq('id', subscriptionId);
+
+    if (error) {
+      alert('Hata: ' + error.message);
+      return;
+    }
+
+    alert(`✅ ${amount} ${creditType === 'message' ? 'mesaj' : 'kalori'} kredi eklendi!`);
+    loadSubscriptions();
+  };
+
+  const changePlanType = async (subscriptionId: string, newPlan: 'free' | 'standard' | 'unlimited') => {
+    if (!confirm(`Paket türünü ${newPlan} olarak değiştirmek istediğinize emin misiniz?`)) return;
+
+    const isUnlimited = newPlan === 'unlimited';
+    const credits = newPlan === 'free' ? { message: 10, calorie: 3 } :
+                   newPlan === 'standard' ? { message: 1000, calorie: 365 } :
+                   { message: 999999, calorie: 999999 };
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({
+        plan_type: newPlan,
+        is_unlimited: isUnlimited,
+        message_credits: credits.message,
+        calorie_credits: credits.calorie,
+        status: 'active',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', subscriptionId);
+
+    if (error) {
+      alert('Hata: ' + error.message);
+      return;
+    }
+
+    alert(`✅ Paket ${newPlan} olarak değiştirildi!`);
+    loadSubscriptions();
   };
 
   const checkAdmin = async () => {
@@ -526,6 +679,9 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab("users")} className={`flex-1 py-3 px-6 rounded-xl font-semibold transition ${activeTab === "users" ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" : "text-gray-600 hover:bg-gray-100"}`}>
             👥 Kullanıcılar
           </button>
+          <button onClick={() => setActiveTab("subscriptions")} className={`flex-1 py-3 px-6 rounded-xl font-semibold transition ${activeTab === "subscriptions" ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" : "text-gray-600 hover:bg-gray-100"}`}>
+            💳 Abonelikler
+          </button>
           <button onClick={() => setActiveTab("courses")} className={`flex-1 py-3 px-6 rounded-xl font-semibold transition ${activeTab === "courses" ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" : "text-gray-600 hover:bg-gray-100"}`}>
             📚 Eğitimler
           </button>
@@ -656,6 +812,196 @@ export default function AdminDashboard() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "subscriptions" && (
+          <div>
+            <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">💳 Abonelik Yönetimi</h2>
+              <p className="text-gray-600">Kullanıcıların abonelik bilgilerini görüntüleyin ve düzenleyin</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-bold">👤 Kullanıcı</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">📦 Paket</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">💬 Mesaj</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">🍽️ Kalori</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">🟢 Durum</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">⚙️ İşlemler</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subscriptions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                        Henüz abonelik kaydı bulunmuyor.
+                      </td>
+                    </tr>
+                  ) : (
+                    subscriptions.map((sub) => (
+                      <tr key={sub.id} className="border-b border-gray-100 hover:bg-purple-50 transition">
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="font-semibold text-gray-800">{sub.user_name}</p>
+                            <p className="text-sm text-gray-500">{sub.user_email}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <select 
+                            value={sub.plan_type}
+                            onChange={(e) => changePlanType(sub.id, e.target.value as any)}
+                            className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-purple-400 focus:outline-none font-semibold"
+                          >
+                            <option value="free">🆓 Free</option>
+                            <option value="standard">🎯 Standard</option>
+                            <option value="unlimited">⭐ Unlimited</option>
+                          </select>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold ${sub.is_unlimited ? 'text-green-600' : 'text-gray-800'}`}>
+                              {sub.is_unlimited ? '∞ Sınırsız' : sub.message_credits}
+                            </span>
+                            {!sub.is_unlimited && (
+                              <div className="flex gap-1">
+                                <button onClick={() => addCredits(sub.id, 'message', 10)} className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold hover:bg-green-200">+10</button>
+                                <button onClick={() => addCredits(sub.id, 'message', 100)} className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold hover:bg-green-200">+100</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold ${sub.is_unlimited ? 'text-green-600' : 'text-gray-800'}`}>
+                              {sub.is_unlimited ? '∞ Sınırsız' : sub.calorie_credits}
+                            </span>
+                            {!sub.is_unlimited && (
+                              <div className="flex gap-1">
+                                <button onClick={() => addCredits(sub.id, 'calorie', 5)} className="px-2 py-1 bg-orange-100 text-orange-600 rounded text-xs font-bold hover:bg-orange-200">+5</button>
+                                <button onClick={() => addCredits(sub.id, 'calorie', 30)} className="px-2 py-1 bg-orange-100 text-orange-600 rounded text-xs font-bold hover:bg-orange-200">+30</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            sub.status === 'active' ? 'bg-green-100 text-green-600' :
+                            sub.status === 'expired' ? 'bg-red-100 text-red-600' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {sub.status === 'active' ? '✅ Aktif' : sub.status === 'expired' ? '❌ Süresi Doldu' : '🚫 İptal'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button 
+                            onClick={() => openEditSubscription(sub)}
+                            className="px-4 py-2 bg-blue-100 text-blue-600 rounded-lg font-semibold hover:bg-blue-200 transition"
+                          >
+                            ✏️ Düzenle
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Subscription Düzenleme Modal */}
+        {editingSubscription && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl">
+              <h3 className="text-2xl font-bold text-gray-800 mb-6">✏️ Abonelik Düzenle</h3>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kullanıcı</label>
+                  <p className="text-gray-600">{editingSubscription.user_name} ({editingSubscription.user_email})</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Paket Türü</label>
+                  <select 
+                    value={subscriptionEditData.plan_type}
+                    onChange={(e) => setSubscriptionEditData({...subscriptionEditData, plan_type: e.target.value as any})}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
+                  >
+                    <option value="free">Free</option>
+                    <option value="standard">Standard</option>
+                    <option value="unlimited">Unlimited</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mesaj Kredisi</label>
+                    <input 
+                      type="number" 
+                      value={subscriptionEditData.message_credits}
+                      onChange={(e) => setSubscriptionEditData({...subscriptionEditData, message_credits: parseInt(e.target.value) || 0})}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
+                      disabled={subscriptionEditData.is_unlimited}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Kalori Kredisi</label>
+                    <input 
+                      type="number" 
+                      value={subscriptionEditData.calorie_credits}
+                      onChange={(e) => setSubscriptionEditData({...subscriptionEditData, calorie_credits: parseInt(e.target.value) || 0})}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
+                      disabled={subscriptionEditData.is_unlimited}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      checked={subscriptionEditData.is_unlimited}
+                      onChange={(e) => setSubscriptionEditData({...subscriptionEditData, is_unlimited: e.target.checked})}
+                      className="w-5 h-5 text-purple-600 rounded"
+                    />
+                    <span className="text-sm font-semibold text-gray-700">Sınırsız Kredi</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Durum</label>
+                  <select 
+                    value={subscriptionEditData.status}
+                    onChange={(e) => setSubscriptionEditData({...subscriptionEditData, status: e.target.value as any})}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
+                  >
+                    <option value="active">Aktif</option>
+                    <option value="expired">Süresi Doldu</option>
+                    <option value="cancelled">İptal Edildi</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={updateSubscription}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition"
+                >
+                  ✅ Kaydet
+                </button>
+                <button 
+                  onClick={() => setEditingSubscription(null)}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition"
+                >
+                  ❌ İptal
+                </button>
+              </div>
             </div>
           </div>
         )}

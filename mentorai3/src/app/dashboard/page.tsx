@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/useUser";
 
@@ -35,6 +35,8 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [quote, setQuote] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
 
   useEffect(() => {
     setRandomQuote();
@@ -50,24 +52,90 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const checkUser = async () => {
+  // Real-time subscriptions - Tüm tabloları dinle
+  useEffect(() => {
+    if (!user) return;
+
+    const mealsChannel = supabase
+      .channel('dashboard-meals')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meals' },
+        () => {
+          console.log('Meals değişti, stats güncelleniyor');
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    const meditationChannel = supabase
+      .channel('dashboard-meditation')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meditation_sessions' },
+        () => {
+          console.log('Meditation değişti, stats güncelleniyor');
+          loadStats();
+          loadActivities();
+        }
+      )
+      .subscribe();
+
+    const mantrasChannel = supabase
+      .channel('dashboard-mantras')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mantras' },
+        () => {
+          console.log('Mantras değişti, stats güncelleniyor');
+          loadStats();
+          loadActivities();
+        }
+      )
+      .subscribe();
+
+    const courseChannel = supabase
+      .channel('dashboard-courses')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'course_progress' },
+        () => {
+          console.log('Course progress değişti, stats güncelleniyor');
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(mealsChannel);
+      supabase.removeChannel(meditationChannel);
+      supabase.removeChannel(mantrasChannel);
+      supabase.removeChannel(courseChannel);
+    };
+  }, [user]);
+
+  const checkUser = useCallback(async () => {
     if (!user) return;
     loadStats();
     loadActivities();
-  };
+  }, [user]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
+    setIsLoadingStats(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setIsLoadingStats(false);
+      return;
+    }
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Tüm API çağrılarını paralel yap
+    // Tüm API çağrılarını paralel yap - sadece gerekli kolonları çek
     const [meditationsRes, mealsRes, mantrasRes, courseProgressRes] = await Promise.all([
-      supabase.from('meditation_sessions').select('*').eq('user_id', user.id),
-      supabase.from('meals').select('*').eq('user_id', user.id).gte('date', today),
-      supabase.from('mantras').select('*').eq('user_id', user.id),
-      supabase.from('course_progress').select('*').eq('user_id', user.id)
+      supabase.from('meditation_sessions').select('duration, date, created_at').eq('user_id', user.id).limit(100),
+      supabase.from('meals').select('calories, date').eq('user_id', user.id).gte('date', today).limit(50),
+      supabase.from('mantras').select('id').eq('user_id', user.id).limit(100),
+      supabase.from('course_progress').select('progress_percent').eq('user_id', user.id).limit(20)
     ]);
 
     const meditations = meditationsRes.data || [];
@@ -87,7 +155,8 @@ export default function Dashboard() {
       courseProgress: totalProgress,
       streak: calculateStreak(meditations)
     });
-  };
+    setIsLoadingStats(false);
+  }, []);
 
   const calculateStreak = (sessions: any[]) => {
     if (sessions.length === 0) return 0;
@@ -100,9 +169,13 @@ export default function Dashboard() {
     return streak;
   };
 
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async () => {
+    setIsLoadingActivities(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setIsLoadingActivities(false);
+      return;
+    }
 
     const acts: Activity[] = [];
     
@@ -128,7 +201,7 @@ export default function Dashboard() {
     // Son yemek
     const { data: meals } = await supabase
       .from('meals')
-      .select('*')
+      .select('name, calories, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -147,7 +220,7 @@ export default function Dashboard() {
     // Son mantra
     const { data: mantras } = await supabase
       .from('mantras')
-      .select('*')
+      .select('text, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -164,7 +237,8 @@ export default function Dashboard() {
     }
     
     setActivities(acts);
-  };
+    setIsLoadingActivities(false);
+  }, []);
 
   const setRandomQuote = () => {
     const quotes = [
@@ -181,9 +255,10 @@ export default function Dashboard() {
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
-    if (hour < 12) return "Günaydın";
-    if (hour < 18) return "İyi günler";
-    return "İyi akşamlar";
+    if (hour >= 6 && hour < 12) return "Günaydın"; // 06:00 - 11:59
+    if (hour >= 12 && hour < 18) return "İyi günler"; // 12:00 - 17:59
+    if (hour >= 18 && hour < 22) return "İyi akşamlar"; // 18:00 - 21:59
+    return "İyi geceler"; // 22:00 - 05:59
   };
 
   const features = [

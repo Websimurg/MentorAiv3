@@ -39,15 +39,12 @@ export default function AIChat() {
   const [showHistory, setShowHistory] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>({
-    name: "Hasan",
+    name: "Kullanıcı",
     preferences: [],
     learnings: [],
     lastUpdated: Date.now()
   });
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mainCategories = [
     { id: "love", name: "Aşk & İlişkiler", icon: "❤️", gradient: "from-pink-400 to-rose-500" },
@@ -182,20 +179,42 @@ export default function AIChat() {
     const messageToSend = customMessage || input;
     if (!messageToSend.trim() || isLoading) return;
     
-    // Sentry breadcrumb ekle
-    Sentry.addBreadcrumb({
-      category: 'user-action',
-      message: 'Kullanıcı mesaj gönderdi',
-      level: 'info',
-      data: {
-        messageLength: messageToSend.length,
-        hasImage: !!uploadedImage,
-      },
+    // Mesaj kredisi kontrolü
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const creditCheckResponse = await fetch('/api/check-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, creditType: 'message' })
     });
+
+    const creditData = await creditCheckResponse.json();
+    
+    if (!creditData.hasCredit) {
+      alert('❌ Mesaj hakkınız kalmadı!\n\n💎 Premium paketi satın alarak 50 mesaj hakkı kazanabilirsiniz.\n📦 Veya ek paketlerden 10$\'dan başlayan fiyatlarla mesaj hakkı ekleyebilirsiniz.\n\n🔗 /subscription sayfasından paketleri inceleyebilirsiniz.');
+      return;
+    }
+    
+    // Sentry breadcrumb ekle (hata durumunda devam et)
+    try {
+      Sentry.addBreadcrumb({
+        category: 'user-action',
+        message: 'Kullanıcı mesaj gönderdi',
+        level: 'info',
+        data: {
+          messageLength: messageToSend.length,
+          remainingCredits: creditData.remaining
+        },
+      });
+    } catch (e) {
+      console.warn('Sentry breadcrumb error:', e);
+    }
     
     const userMessage: Message = { role: "user", content: messageToSend, timestamp: Date.now() };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    
     setIsLoading(true);
     
     try {
@@ -243,6 +262,13 @@ export default function AIChat() {
         updateUserProfile(data.userLearnings);
       }
       
+      // Kredi kullan
+      await fetch('/api/use-credit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, creditType: 'message' })
+      });
+      
       // Chat'i kaydet
       setTimeout(() => saveCurrentChat(), 500);
     } catch (error: any) {
@@ -258,7 +284,6 @@ export default function AIChat() {
         extra: {
           messageLength: messageToSend.length,
           threadId: threadId,
-          hasImage: !!uploadedImage,
         },
       });
       
@@ -356,12 +381,8 @@ export default function AIChat() {
   };
   
   const startNewChat = () => {
-    const welcomeMessage: Message = {
-      role: "assistant",
-      content: "Merhaba! Ben senin kişisel gelişim asistanınım. Hangi konuda yardımcı olabilirim?",
-      timestamp: Date.now()
-    };
-    setMessages([welcomeMessage]);
+    // Mesajları temizle ve kategorileri göster
+    setMessages([]);
     setThreadId(null);
     setCurrentChatId(null);
     setSelectedCategory(null);
@@ -387,17 +408,6 @@ export default function AIChat() {
     await loadChatHistories(user.id);
   };
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadedImage(reader.result as string);
-      setShowAttachMenu(false);
-    };
-    reader.readAsDataURL(file);
-  };
 
   const updateUserProfile = (learnings: string[]) => {
     const updatedProfile = {
@@ -553,7 +563,7 @@ export default function AIChat() {
       )}
 
       {!selectedCategory && !selectedSubCategory && messages.length === 0 && (
-        <div className="max-w-6xl mx-auto mb-8"><div className="text-center mb-8"><div className="text-6xl mb-4">👋</div><h1 className="text-4xl font-bold text-gray-800 mb-2">Merhaba Hasan!</h1><p className="text-gray-600">Hayatının hangi alanında destek istiyorsun?</p></div>
+        <div className="max-w-6xl mx-auto mb-8"><div className="text-center mb-8"><div className="text-6xl mb-4">👋</div><h1 className="text-4xl font-bold text-gray-800 mb-2">Merhaba {userProfile.name}!</h1><p className="text-gray-600">Hayatının hangi alanında destek istiyorsun?</p></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">{mainCategories.map((cat, idx) => (<button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`group relative overflow-hidden rounded-3xl p-8 transition-all duration-500 transform hover:scale-105 shadow-xl hover:shadow-2xl bg-gradient-to-br ${cat.gradient}`} style={{ animation: `slideIn 0.5s ease-out ${idx * 100}ms both` }}><div className="relative z-10 text-center"><div className="text-6xl mb-4 transform transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12">{cat.icon}</div><h3 className="text-xl font-bold text-white mb-2">{cat.name}</h3><div className="mt-4 text-white/90 text-sm">Tıklayarak keşfet →</div></div></button>))}</div></div>
       )}
 
@@ -613,58 +623,8 @@ export default function AIChat() {
       {/* WhatsApp Tarzı Input Alanı */}
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white border-t shadow-lg z-30">
         <div className="max-w-4xl mx-auto p-4">
-          {/* Yüklenmiş Resim Önizleme */}
-          {uploadedImage && (
-            <div className="mb-2 relative inline-block">
-              <img src={uploadedImage} alt="Upload" className="w-20 h-20 rounded-lg object-cover" />
-              <button
-                onClick={() => setUploadedImage(null)}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
-              >
-                ×
-              </button>
-            </div>
-          )}
           
           <div className="flex items-center gap-2">
-            {/* Ekle Butonu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowAttachMenu(!showAttachMenu)}
-                className="p-3 text-gray-600 hover:bg-gray-100 rounded-full transition"
-              >
-                📎
-              </button>
-              
-              {showAttachMenu && (
-                <div className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl p-2 space-y-1">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg w-full text-left"
-                  >
-                    📷 Resim
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowAttachMenu(false);
-                      alert('Web arama özelliği yakında!');
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg w-full text-left"
-                  >
-                    🔍 Web Ara
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            {/* Hidden File Input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
             
             {/* Text Input */}
             <input
@@ -680,7 +640,7 @@ export default function AIChat() {
             {/* Gönder Butonu */}
             <button
               onClick={() => sendMessage()}
-              disabled={isLoading || (!input.trim() && !uploadedImage)}
+              disabled={isLoading || !input.trim()}
               className="p-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "⏳" : "🚀"}

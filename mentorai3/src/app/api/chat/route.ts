@@ -5,7 +5,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const ASSISTANT_ID = "asst_EmS0mTwSqzYzf7rxiirs1vml";
+const ASSISTANT_ID = "asst_pARqHa5otpEbhSET2ul3J2eV";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,6 +45,13 @@ ${userPreferences.length > 0 ? `- Tercihler: ${userPreferences.join(", ")}` : ""
 Kullanıcının mesajı: ${message}
 
 Lütfen kullanıcıya ${userName} diye hitap et. Öğrenilen bilgileri sadece UYGUN OLDUĞUNDA kullan, her mesajda bahsetme. Doğal ve akıcı bir sohbet yap.`;
+    } else {
+      // Devam eden sohbetlerde de kullanıcı adını hatırlat
+      contextualMessage = `[KULLANICI: ${userName}${userLearnings.length > 0 ? ` | İlgi: ${userLearnings.slice(-3).join(", ")}` : ""}]
+
+${message}
+
+[HATIRLA: Kısa, güçlü, aksiyona odaklı cevap ver. ${userName} ile koç gibi konuş. Her 2-3 mesajda SORU sor. Emoji: 1-2 tane. Format: Açılış + Aksiyon listesi + Motive edici kapanış]`;
     }
     
     // Mesajı thread'e ekle
