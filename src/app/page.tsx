@@ -148,12 +148,6 @@ export default function Home() {
             <Link href="#features" className="text-gray-300 hover:text-white transition">Özellikler</Link>
             <Link href="#testimonials" className="text-gray-300 hover:text-white transition">Yorumlar</Link>
             <Link href="#faq" className="text-gray-300 hover:text-white transition">SSS</Link>
-            <Link 
-              href="/login" 
-              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
-            >
-              Başla →
-            </Link>
           </div>
         </div>
       </nav>
@@ -207,19 +201,10 @@ export default function Home() {
             }}
           >
             <Link
-              href="/login"
-              className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-lg shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-all transform hover:scale-105"
-            >
-              <span className="flex items-center gap-2">
-                🚀 Hemen Başla
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </span>
-            </Link>
-            <Link
               href="#features"
-              className="px-8 py-4 bg-white/10 backdrop-blur-sm rounded-full font-bold text-lg border border-white/20 hover:bg-white/20 transition-all transform hover:scale-105"
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-lg shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-all transform hover:scale-105"
             >
-              Özellikleri Keşfet
+              Özellikleri Keşfet ↓
             </Link>
           </div>
 
@@ -389,17 +374,11 @@ export default function Home() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="p-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-3xl shadow-2xl shadow-purple-500/50">
             <h2 className="text-5xl md:text-6xl font-bold mb-6">
-              Hazır mısın?
+              Kışisel Gelişimin İçin Her Şey
             </h2>
-            <p className="text-2xl mb-10 text-purple-100">
-              Bugün başla, hayatını dönüştür. Tamamen ücretsiz.
+            <p className="text-2xl text-purple-100">
+              AI destekli koçluk, ücretsiz eğitimler, meditasyon ve daha fazlası.
             </p>
-            <Link
-              href="/login"
-              className="inline-block px-12 py-5 bg-white text-purple-600 rounded-full font-bold text-xl shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105"
-            >
-              🎉 Ücretsiz Kayıt Ol
-            </Link>
           </div>
         </div>
       </section>

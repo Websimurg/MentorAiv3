@@ -395,12 +395,14 @@ export default function AdminDashboard() {
     console.log('👤 Current user:', user);
     
     try {
-      // auth.users'dan kullanıcıları al
-      const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
+      // Profiles'tan kullanıcıları al (basit yöntem)
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
       
-      if (authError) {
-        console.error('❌ Auth users yükleme hatası:', authError);
-        return;
+      if (profilesError) {
+        console.error('❌ Profiles yükleme hatası:', profilesError);
       }
 
       // Kursları yükle
@@ -413,16 +415,31 @@ export default function AdminDashboard() {
         console.error('❌ Courses yükleme hatası:', coursesError);
       }
 
+      // Subscriptions'ı yükle (premium kontrol için)
+      const { data: subsData } = await supabase
+        .from('user_subscriptions')
+        .select('user_id, plan_type, is_unlimited');
+
+      // Subscription map oluştur
+      const subscriptionMap = new Map(
+        (subsData || []).map(sub => [sub.user_id, sub])
+      );
+
       // Kullanıcıları formatla
-      const formattedUsers: User[] = (authUsers || []).map(authUser => ({
-        id: authUser.id,
-        name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Kullanıcı',
-        email: authUser.email || '',
-        joinDate: new Date(authUser.created_at).toLocaleDateString('tr-TR'),
-        lastActive: new Date(authUser.last_sign_in_at || authUser.created_at).toLocaleDateString('tr-TR'),
-        isPremium: false, // Subscription'dan alınacak
-        isAdmin: authUser.email === 'websimurg@gmail.com'
-      }));
+      const formattedUsers: User[] = (profilesData || []).map(profile => {
+        const subscription = subscriptionMap.get(profile.id);
+        const isPremium = subscription?.plan_type !== 'free' || subscription?.is_unlimited || false;
+        
+        return {
+          id: profile.id,
+          name: profile.name || profile.id.substring(0, 8),
+          email: profile.id + '@user.com', // Geici - email profiles'ta yok
+          joinDate: new Date(profile.created_at).toLocaleDateString('tr-TR'),
+          lastActive: new Date(profile.updated_at || profile.created_at).toLocaleDateString('tr-TR'),
+          isPremium,
+          isAdmin: false // Email olmadan kontrol edilemiyor
+        };
+      });
 
       const loadedCourses = coursesData || [];
 
