@@ -261,6 +261,65 @@ export default function AdminDashboard() {
     loadSubscriptions();
   };
 
+  const addCustomCredits = async (subscriptionId: string, creditType: 'message' | 'calorie') => {
+    const subscription = subscriptions.find(s => s.id === subscriptionId);
+    if (!subscription) return;
+
+    const currentAmount = creditType === 'message' ? subscription.message_credits : subscription.calorie_credits;
+    const creditName = creditType === 'message' ? 'mesaj' : 'kalori';
+    
+    const input = prompt(
+      `${subscription.user_name} için eklemek istediğiniz ${creditName} kredi miktarını girin:\n\nMevcut: ${currentAmount} ${creditName}`,
+      '100'
+    );
+
+    if (!input) return;
+    
+    const amount = parseInt(input);
+    if (isNaN(amount) || amount <= 0) {
+      alert('❌ Geçerli bir sayı girin!');
+      return;
+    }
+
+    await addCredits(subscriptionId, creditType, amount);
+  };
+
+  const setCustomCredits = async (subscriptionId: string, creditType: 'message' | 'calorie') => {
+    const subscription = subscriptions.find(s => s.id === subscriptionId);
+    if (!subscription) return;
+
+    const currentAmount = creditType === 'message' ? subscription.message_credits : subscription.calorie_credits;
+    const creditName = creditType === 'message' ? 'mesaj' : 'kalori';
+    
+    const input = prompt(
+      `${subscription.user_name} için YENİ ${creditName} kredi miktarını girin (mevcut kredi silinecek):\n\nMevcut: ${currentAmount} ${creditName}`,
+      currentAmount.toString()
+    );
+
+    if (!input) return;
+    
+    const newAmount = parseInt(input);
+    if (isNaN(newAmount) || newAmount < 0) {
+      alert('❌ Geçerli bir sayı girin!');
+      return;
+    }
+
+    const fieldName = creditType === 'message' ? 'message_credits' : 'calorie_credits';
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({ [fieldName]: newAmount })
+      .eq('id', subscriptionId);
+
+    if (error) {
+      alert('Hata: ' + error.message);
+      return;
+    }
+
+    alert(`✅ ${creditName} kredisi ${newAmount} olarak ayarlandı!`);
+    loadSubscriptions();
+  };
+
   const changePlanType = async (subscriptionId: string, newPlan: 'free' | 'standard' | 'unlimited') => {
     if (!confirm(`Paket türünü ${newPlan} olarak değiştirmek istediğinize emin misiniz?`)) return;
 
