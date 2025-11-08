@@ -126,37 +126,64 @@ export default function AdminDashboard() {
   }, [activeTab, user]);
 
   const loadSubscriptions = async () => {
-    const { data, error } = await supabase
-      .from('user_subscriptions')
-      .select(`
-        *,
-        profiles:user_id (
-          email,
-          name
-        )
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
+      if (error) {
+        console.error('Subscription yükleme hatası:', error);
+        return;
+      }
+
+      if (data) {
+        // Her subscription için email al
+        const subsWithEmails = await Promise.all(
+          data.map(async (sub) => {
+            try {
+              const { data: { user: authUser } } = await supabase.auth.admin.getUserById(sub.user_id);
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('id', sub.user_id)
+                .single();
+              
+              return {
+                id: sub.id,
+                user_id: sub.user_id,
+                user_email: authUser?.email || 'Email yok',
+                user_name: profile?.name || authUser?.email?.split('@')[0] || 'Kullanıcı',
+                plan_type: sub.plan_type,
+                status: sub.status,
+                message_credits: sub.message_credits,
+                calorie_credits: sub.calorie_credits,
+                is_unlimited: sub.is_unlimited,
+                start_date: sub.start_date,
+                created_at: sub.created_at
+              };
+            } catch (err) {
+              return {
+                id: sub.id,
+                user_id: sub.user_id,
+                user_email: 'Hata',
+                user_name: 'Bilinmiyor',
+                plan_type: sub.plan_type,
+                status: sub.status,
+                message_credits: sub.message_credits,
+                calorie_credits: sub.calorie_credits,
+                is_unlimited: sub.is_unlimited,
+                start_date: sub.start_date,
+                created_at: sub.created_at
+              };
+            }
+          })
+        );
+        
+        setSubscriptions(subsWithEmails as UserSubscription[]);
+      }
+    } catch (error) {
       console.error('Subscription yükleme hatası:', error);
-      return;
-    }
-
-    if (data) {
-      const formattedSubscriptions: UserSubscription[] = data.map((sub: any) => ({
-        id: sub.id,
-        user_id: sub.user_id,
-        user_email: sub.profiles?.email || 'Bilinmiyor',
-        user_name: sub.profiles?.name || 'Bilinmiyor',
-        plan_type: sub.plan_type,
-        status: sub.status,
-        message_credits: sub.message_credits,
-        calorie_credits: sub.calorie_credits,
-        is_unlimited: sub.is_unlimited,
-        start_date: sub.start_date,
-        created_at: sub.created_at
-      }));
-      setSubscriptions(formattedSubscriptions);
     }
   };
 
@@ -392,68 +419,67 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     console.log('🔄 Admin - loadData başladı...');
-    console.log('👤 Current user:', user);
     
     try {
-      // Profiles'tan kullanıcıları al (basit yöntem)
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (profilesError) {
-        console.error('❌ Profiles yükleme hatası:', profilesError);
-      }
+      // Tüm verileri yükle
+      const [profilesRes, subsRes, coursesRes] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('user_subscriptions').select('*'),
+        supabase.from('courses').select('*').order('created_at', { ascending: false })
+      ]);
 
-      // Kursları yükle
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (coursesError) {
-        console.error('❌ Courses yükleme hatası:', coursesError);
-      }
-
-      // Subscriptions'ı yükle (premium kontrol için)
-      const { data: subsData } = await supabase
-        .from('user_subscriptions')
-        .select('user_id, plan_type, is_unlimited');
+      const profilesData = profilesRes.data || [];
+      const subsData = subsRes.data || [];
+      const coursesData = coursesRes.data || [];
 
       // Subscription map oluştur
       const subscriptionMap = new Map(
-        (subsData || []).map(sub => [sub.user_id, sub])
+        subsData.map(sub => [sub.user_id, sub])
       );
 
-      // Kullanıcıları formatla
-      const formattedUsers: User[] = (profilesData || []).map(profile => {
-        const subscription = subscriptionMap.get(profile.id);
-        const isPremium = subscription?.plan_type !== 'free' || subscription?.is_unlimited || false;
-        
-        return {
-          id: profile.id,
-          name: profile.name || profile.id.substring(0, 8),
-          email: profile.id + '@user.com', // Geici - email profiles'ta yok
-          joinDate: new Date(profile.created_at).toLocaleDateString('tr-TR'),
-          lastActive: new Date(profile.updated_at || profile.created_at).toLocaleDateString('tr-TR'),
-          isPremium,
-          isAdmin: false // Email olmadan kontrol edilemiyor
-        };
+      // Her kullanıcı için email'i auth'dan çek
+      const userPromises = profilesData.map(async (profile) => {
+        try {
+          // Auth user bilgisini al
+          const { data: { user: authUser } } = await supabase.auth.admin.getUserById(profile.id);
+          const subscription = subscriptionMap.get(profile.id);
+          const isPremium = subscription?.plan_type !== 'free' || subscription?.is_unlimited || false;
+          
+          return {
+            id: profile.id,
+            name: profile.name || authUser?.email?.split('@')[0] || 'Kullanıcı',
+            email: authUser?.email || 'Email yok',
+            joinDate: new Date(profile.created_at).toLocaleDateString('tr-TR'),
+            lastActive: new Date(authUser?.last_sign_in_at || profile.created_at).toLocaleDateString('tr-TR'),
+            isPremium,
+            isAdmin: authUser?.email === 'websimurg@gmail.com'
+          };
+        } catch (err) {
+          console.error('❌ User data error:', err);
+          return {
+            id: profile.id,
+            name: profile.name || 'Kullanıcı',
+            email: 'Hatalı',
+            joinDate: new Date(profile.created_at).toLocaleDateString('tr-TR'),
+            lastActive: '-',
+            isPremium: false,
+            isAdmin: false
+          };
+        }
       });
 
-      const loadedCourses = coursesData || [];
+      const formattedUsers = await Promise.all(userPromises);
 
       console.log('👥 Admin - Formatted users:', formattedUsers.length);
-      console.log('📚 Admin - Loaded courses:', loadedCourses.length);
+      console.log('📚 Admin - Loaded courses:', coursesData.length);
 
       setUsers(formattedUsers);
-      setCourses(loadedCourses);
+      setCourses(coursesData);
       
-      // İstatistikleri güncelle
       setStats({
         totalUsers: formattedUsers.length,
         premiumUsers: formattedUsers.filter((u: User) => u.isPremium).length,
-        totalCourses: loadedCourses.length,
+        totalCourses: coursesData.length,
         totalRevenue: formattedUsers.filter((u: User) => u.isPremium).length * 99
       });
 
@@ -718,17 +744,12 @@ export default function AdminDashboard() {
       // 3. Auth user'i sil (admin API gerektirir - RPC kullanarak)
       const { error: authError } = await supabase.rpc('delete_user', { user_id: userId });
       
-      if (authError) {
-        console.warn('Auth silme hatası:', authError);
-        // Auth silinmese bile devam et
-      }
-      
-      alert('✅ Kullanıcı başarıyla silindi!');
+      alert('✅ Kullanıcı verileri silindi!');
       setEditingUser(null);
       loadData();
     } catch (err) {
       console.error('Delete error:', err);
-      alert('❌ Silme sırasında hata oluştu!');
+      alert('❌ Silme sırasında hata oluştu: ' + (err as Error).message);
     }
   };
   
