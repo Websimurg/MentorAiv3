@@ -667,6 +667,21 @@ export default function AdminDashboard() {
   };
 
   
+  const sendPasswordResetEmail = async (userEmail: string) => {
+    if (!confirm(`${userEmail} adresine şifre sıfırlama bağlantısı göndermek istediğinize emin misiniz?`)) return;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      alert('❌ Hata: ' + error.message);
+      return;
+    }
+
+    alert(`✅ Şifre sıfırlama bağlantısı ${userEmail} adresine gönderildi!`);
+  };
+
   const deleteUser = async (userId: string) => {
     if (!confirm('⚠️ Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz?')) return;
     
@@ -843,7 +858,7 @@ export default function AdminDashboard() {
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             <button 
                               onClick={() => {
                                 setEditingUser(user);
@@ -857,6 +872,12 @@ export default function AdminDashboard() {
                               className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
                             >
                               ✏️ Düzenle
+                            </button>
+                            <button 
+                              onClick={() => sendPasswordResetEmail(user.email)} 
+                              className="px-3 py-1 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition"
+                            >
+                              🔑 Şifre Sıfırla
                             </button>
                             <button 
                               onClick={() => deleteUser(user.id)} 
