@@ -868,9 +868,11 @@ export default function AdminDashboard() {
                               {sub.is_unlimited ? '∞ Sınırsız' : sub.message_credits}
                             </span>
                             {!sub.is_unlimited && (
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 flex-wrap">
                                 <button onClick={() => addCredits(sub.id, 'message', 10)} className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold hover:bg-green-200">+10</button>
                                 <button onClick={() => addCredits(sub.id, 'message', 100)} className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold hover:bg-green-200">+100</button>
+                                <button onClick={() => addCustomCredits(sub.id, 'message')} className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs font-bold hover:bg-blue-200">✏️ Ekle</button>
+                                <button onClick={() => setCustomCredits(sub.id, 'message')} className="px-2 py-1 bg-purple-100 text-purple-600 rounded text-xs font-bold hover:bg-purple-200">🎯 Ayarla</button>
                               </div>
                             )}
                           </div>
@@ -881,9 +883,11 @@ export default function AdminDashboard() {
                               {sub.is_unlimited ? '∞ Sınırsız' : sub.calorie_credits}
                             </span>
                             {!sub.is_unlimited && (
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 flex-wrap">
                                 <button onClick={() => addCredits(sub.id, 'calorie', 5)} className="px-2 py-1 bg-orange-100 text-orange-600 rounded text-xs font-bold hover:bg-orange-200">+5</button>
                                 <button onClick={() => addCredits(sub.id, 'calorie', 30)} className="px-2 py-1 bg-orange-100 text-orange-600 rounded text-xs font-bold hover:bg-orange-200">+30</button>
+                                <button onClick={() => addCustomCredits(sub.id, 'calorie')} className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs font-bold hover:bg-blue-200">✏️ Ekle</button>
+                                <button onClick={() => setCustomCredits(sub.id, 'calorie')} className="px-2 py-1 bg-purple-100 text-purple-600 rounded text-xs font-bold hover:bg-purple-200">🎯 Ayarla</button>
                               </div>
                             )}
                           </div>
