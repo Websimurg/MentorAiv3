@@ -18,14 +18,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Admin kontrolü - websimurg@gmail.com sınırsız erişim
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('email, role')
-      .eq('id', userId)
-      .single();
+    // Admin kontrolü - auth.users'dan email al
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    const userEmail = authUser?.user?.email || '';
 
-    const isAdmin = userProfile?.email === 'websimurg@gmail.com' || userProfile?.role === 'admin';
+    const isAdmin = userEmail === 'websimurg@gmail.com';
 
     if (isAdmin) {
       // Admin için kredi düşürme, sadece log

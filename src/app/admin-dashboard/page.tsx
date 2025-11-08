@@ -395,38 +395,36 @@ export default function AdminDashboard() {
     console.log('👤 Current user:', user);
     
     try {
-      // Tüm verileri paralel yükle
-      const [profilesRes, coursesRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('courses').select('*').order('created_at', { ascending: false })
-      ]);
-
-      console.log('📊 Admin - Profiles response:', profilesRes);
-      console.log('📊 Admin - Profiles data:', profilesRes.data);
-      console.log('📊 Admin - Profiles error:', profilesRes.error);
-      console.log('📚 Admin - Courses response:', coursesRes);
-
-      if (profilesRes.error) {
-        console.error('❌ Profiles yükleme hatası:', profilesRes.error);
+      // auth.users'dan kullanıcıları al
+      const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
+      
+      if (authError) {
+        console.error('❌ Auth users yükleme hatası:', authError);
+        return;
       }
 
-      if (coursesRes.error) {
-        console.error('❌ Courses yükleme hatası:', coursesRes.error);
+      // Kursları yükle
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (coursesError) {
+        console.error('❌ Courses yükleme hatası:', coursesError);
       }
 
       // Kullanıcıları formatla
-      const formattedUsers: User[] = (profilesRes.data || []).map(profile => ({
-        id: profile.id,
-        name: profile.name || profile.email?.split('@')[0] || 'Kullanıcı',
-        email: profile.email || '',
-        joinDate: new Date(profile.created_at).toLocaleDateString('tr-TR'),
-        lastActive: new Date(profile.last_sign_in_at || profile.created_at).toLocaleDateString('tr-TR'),
-        isPremium: profile.is_premium || false,
-        isAdmin: profile.role === 'admin'
+      const formattedUsers: User[] = (authUsers || []).map(authUser => ({
+        id: authUser.id,
+        name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Kullanıcı',
+        email: authUser.email || '',
+        joinDate: new Date(authUser.created_at).toLocaleDateString('tr-TR'),
+        lastActive: new Date(authUser.last_sign_in_at || authUser.created_at).toLocaleDateString('tr-TR'),
+        isPremium: false, // Subscription'dan alınacak
+        isAdmin: authUser.email === 'websimurg@gmail.com'
       }));
 
-      // Kursları formatla
-      const loadedCourses = coursesRes.data || [];
+      const loadedCourses = coursesData || [];
 
       console.log('👥 Admin - Formatted users:', formattedUsers.length);
       console.log('📚 Admin - Loaded courses:', loadedCourses.length);
@@ -683,21 +681,38 @@ export default function AdminDashboard() {
   };
 
   const deleteUser = async (userId: string) => {
-    if (!confirm('⚠️ Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz?')) return;
+    if (!confirm('⚠️ Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz?\n\nTüm verileri (profil, abonelik, dersler) silinecektir!')) return;
     
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
-    
-    if (error) {
-      alert('❌ Hata: ' + error.message);
-      return;
+    try {
+      // 1. Önce ilişkili tablolardan sil
+      await supabase.from('user_subscriptions').delete().eq('user_id', userId);
+      
+      // 2. Profili sil
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+      
+      if (profileError) {
+        alert('❌ Profil silme hatası: ' + profileError.message);
+        return;
+      }
+
+      // 3. Auth user'i sil (admin API gerektirir - RPC kullanarak)
+      const { error: authError } = await supabase.rpc('delete_user', { user_id: userId });
+      
+      if (authError) {
+        console.warn('Auth silme hatası:', authError);
+        // Auth silinmese bile devam et
+      }
+      
+      alert('✅ Kullanıcı başarıyla silindi!');
+      setEditingUser(null);
+      loadData();
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('❌ Silme sırasında hata oluştu!');
     }
-    
-    alert('✅ Kullanıcı silindi!');
-    setEditingUser(null);
-    loadData();
   };
   
   const saveUserEdit = async () => {
