@@ -1159,6 +1159,34 @@ export default function Kalori() {
           </div>
         </div>
       )}
+
+      {/* Analiz Ediliyor Durumu - Sadece analiz aktifken göster */}
+      {isAnalyzing && selectedImage && (
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl shadow-xl p-8 mb-8 border border-blue-200">
+          <div className="flex items-center justify-center gap-4">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 bg-blue-600 rounded-full animate-pulse" />
+              </div>
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-bold text-slate-800 mb-1">Analiz Ediliyor...</h3>
+              <p className="text-slate-600">Yemeğiniz yapay zeka tarafından analiz ediliyor</p>
+              <p className="text-sm text-slate-500 mt-2">Lütfen bekleyin, bu işlem birkaç saniye sürebilir</p>
+            </div>
+          </div>
+          {selectedImage && (
+            <div className="mt-6 flex justify-center">
+              <img 
+                src={selectedImage} 
+                alt="Analiz ediliyor" 
+                className="w-32 h-32 object-cover rounded-xl shadow-lg opacity-75" 
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

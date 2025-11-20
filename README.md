@@ -31,7 +31,31 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Hızlı Deploy (Vercel CLI)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Vercel CLI yükle (yüklü değilse)
+npm i -g vercel
+
+# Projeyi deploy et
+vercel --prod
+```
+
+### Gerekli Environment Değişkenleri
+
+Vercel dashboard'da aşağıdaki environment değişkenlerini eklemelisin:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `SENTRY_ORG`
+- `SENTRY_PROJECT`
+- `SENTRY_AUTH_TOKEN`
+
+### Alternatif: Vercel Platform
+
+[Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) üzerinden de deploy edebilirsin.
+
+[Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying)
 # MentorAi3

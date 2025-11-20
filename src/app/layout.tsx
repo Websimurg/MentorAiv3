@@ -31,6 +31,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <Header />
         <div className={isFullWidth ? "" : "pt-20 lg:pt-0 lg:ml-64"}>
