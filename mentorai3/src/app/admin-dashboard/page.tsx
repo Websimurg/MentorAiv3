@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/useUser";
 import { useRouter } from "next/navigation";
+import { getAdminData, toggleUserAdmin as toggleAdminAction, deleteUser as deleteUserAction, updateUser as updateUserAction } from "./actions";
 
 interface User {
   id: string;
@@ -76,7 +77,7 @@ export default function AdminDashboard() {
   const [newLesson, setNewLesson] = useState({ title: "", videoUrl: "", duration: "" });
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userEditData, setUserEditData] = useState({ name: "", email: "", isPremium: false, isAdmin: false });
-  
+
   // Subscription yönetimi
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([]);
   const [editingSubscription, setEditingSubscription] = useState<UserSubscription | null>(null);
@@ -87,7 +88,7 @@ export default function AdminDashboard() {
     is_unlimited: false,
     status: 'active' as 'active' | 'expired' | 'cancelled'
   });
-  
+
   // Sistem ayarları
   const [settings, setSettings] = useState({
     siteName: "MentorAi³",
@@ -96,13 +97,13 @@ export default function AdminDashboard() {
     maintenanceMode: false,
     emailNotifications: true
   });
-  
+
   const [newCourse, setNewCourse] = useState({
     title: "",
     description: "",
     tempLessons: [] as { title: string; videoUrl: string; duration: string }[]
   });
-  
+
   const [tempLesson, setTempLesson] = useState({ title: "", videoUrl: "", duration: "" });
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function AdminDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
-  
+
   // Sayfa yüklenince verileri çek
   useEffect(() => {
     if (user && activeTab === 'users') {
@@ -126,55 +127,79 @@ export default function AdminDashboard() {
   }, [activeTab, user]);
 
   const loadSubscriptions = async () => {
-    const { data, error } = await supabase
-      .from('user_subscriptions')
-      .select(`
-        *,
-        profiles:user_id (
-          email,
-          name
-        )
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
+      if (error) {
+        console.error('Subscription yükleme hatası:', error);
+        return;
+      }
+
+      if (data) {
+        // Her subscription için email al
+        const subsWithEmails = await Promise.all(
+          data.map(async (sub) => {
+            try {
+              const { data: { user: authUser } } = await supabase.auth.admin.getUserById(sub.user_id);
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('id', sub.user_id)
+                .single();
+
+              return {
+                id: sub.id,
+                user_id: sub.user_id,
+                user_email: authUser?.email || 'Email yok',
+                user_name: profile?.name || authUser?.email?.split('@')[0] || 'Kullanıcı',
+                plan_type: sub.plan_type,
+                status: sub.status,
+                message_credits: sub.message_credits,
+                calorie_credits: sub.calorie_credits,
+                is_unlimited: sub.is_unlimited,
+                start_date: sub.start_date,
+                created_at: sub.created_at
+              };
+            } catch (err) {
+              return {
+                id: sub.id,
+                user_id: sub.user_id,
+                user_email: 'Hata',
+                user_name: 'Bilinmiyor',
+                plan_type: sub.plan_type,
+                status: sub.status,
+                message_credits: sub.message_credits,
+                calorie_credits: sub.calorie_credits,
+                is_unlimited: sub.is_unlimited,
+                start_date: sub.start_date,
+                created_at: sub.created_at
+              };
+            }
+          })
+        );
+
+        setSubscriptions(subsWithEmails as UserSubscription[]);
+      }
+    } catch (error) {
       console.error('Subscription yükleme hatası:', error);
-      return;
-    }
-
-    if (data) {
-      const formattedSubscriptions: UserSubscription[] = data.map((sub: any) => ({
-        id: sub.id,
-        user_id: sub.user_id,
-        user_email: sub.profiles?.email || 'Bilinmiyor',
-        user_name: sub.profiles?.name || 'Bilinmiyor',
-        plan_type: sub.plan_type,
-        status: sub.status,
-        message_credits: sub.message_credits,
-        calorie_credits: sub.calorie_credits,
-        is_unlimited: sub.is_unlimited,
-        start_date: sub.start_date,
-        created_at: sub.created_at
-      }));
-      setSubscriptions(formattedSubscriptions);
     }
   };
 
   const toggleUserAdmin = async (userId: string, currentAdminStatus: boolean) => {
-    const confirmMsg = currentAdminStatus 
+    const confirmMsg = currentAdminStatus
       ? 'Bu kullanıcının admin yetkisini kaldırmak istediğinize emin misiniz?'
       : 'Bu kullanıcıyı admin yapmak istediğinize emin misiniz?';
-    
+
     if (!confirm(confirmMsg)) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: currentAdminStatus ? 'user' : 'admin' })
-      .eq('id', userId);
+    const result = await toggleAdminAction(userId, currentAdminStatus);
 
-    if (error) {
-      console.error('Admin toggle hatası:', error);
-      alert('Hata: ' + error.message);
+    if (result.error) {
+      console.error('Admin toggle hatası:', result.error);
+      alert('Hata: ' + result.error);
       return;
     }
 
@@ -183,10 +208,10 @@ export default function AdminDashboard() {
   };
 
   const toggleUserPremium = async (userId: string, currentPremiumStatus: boolean) => {
-    const confirmMsg = currentPremiumStatus 
+    const confirmMsg = currentPremiumStatus
       ? 'Premium üyeliği kaldırmak istediğinize emin misiniz?'
       : 'Bu kullanıcıyı premium yapmak istediğinize emin misiniz?';
-    
+
     if (!confirm(confirmMsg)) return;
 
     const { error } = await supabase
@@ -261,13 +286,72 @@ export default function AdminDashboard() {
     loadSubscriptions();
   };
 
+  const addCustomCredits = async (subscriptionId: string, creditType: 'message' | 'calorie') => {
+    const subscription = subscriptions.find(s => s.id === subscriptionId);
+    if (!subscription) return;
+
+    const currentAmount = creditType === 'message' ? subscription.message_credits : subscription.calorie_credits;
+    const creditName = creditType === 'message' ? 'mesaj' : 'kalori';
+
+    const input = prompt(
+      `${subscription.user_name} için eklemek istediğiniz ${creditName} kredi miktarını girin:\n\nMevcut: ${currentAmount} ${creditName}`,
+      '100'
+    );
+
+    if (!input) return;
+
+    const amount = parseInt(input);
+    if (isNaN(amount) || amount <= 0) {
+      alert('❌ Geçerli bir sayı girin!');
+      return;
+    }
+
+    await addCredits(subscriptionId, creditType, amount);
+  };
+
+  const setCustomCredits = async (subscriptionId: string, creditType: 'message' | 'calorie') => {
+    const subscription = subscriptions.find(s => s.id === subscriptionId);
+    if (!subscription) return;
+
+    const currentAmount = creditType === 'message' ? subscription.message_credits : subscription.calorie_credits;
+    const creditName = creditType === 'message' ? 'mesaj' : 'kalori';
+
+    const input = prompt(
+      `${subscription.user_name} için YENİ ${creditName} kredi miktarını girin (mevcut kredi silinecek):\n\nMevcut: ${currentAmount} ${creditName}`,
+      currentAmount.toString()
+    );
+
+    if (!input) return;
+
+    const newAmount = parseInt(input);
+    if (isNaN(newAmount) || newAmount < 0) {
+      alert('❌ Geçerli bir sayı girin!');
+      return;
+    }
+
+    const fieldName = creditType === 'message' ? 'message_credits' : 'calorie_credits';
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({ [fieldName]: newAmount })
+      .eq('id', subscriptionId);
+
+    if (error) {
+      alert('Hata: ' + error.message);
+      return;
+    }
+
+    alert(`✅ ${creditName} kredisi ${newAmount} olarak ayarlandı!`);
+    loadSubscriptions();
+  };
+
   const changePlanType = async (subscriptionId: string, newPlan: 'free' | 'standard' | 'unlimited') => {
     if (!confirm(`Paket türünü ${newPlan} olarak değiştirmek istediğinize emin misiniz?`)) return;
 
     const isUnlimited = newPlan === 'unlimited';
     const credits = newPlan === 'free' ? { message: 10, calorie: 3 } :
-                   newPlan === 'standard' ? { message: 1000, calorie: 365 } :
-                   { message: 999999, calorie: 999999 };
+      newPlan === 'standard' ? { message: 1000, calorie: 365 } :
+        { message: 999999, calorie: 999999 };
 
     const { error } = await supabase
       .from('user_subscriptions')
@@ -333,55 +417,24 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     console.log('🔄 Admin - loadData başladı...');
-    console.log('👤 Current user:', user);
-    
+
     try {
-      // Tüm verileri paralel yükle
-      const [profilesRes, coursesRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('courses').select('*').order('created_at', { ascending: false })
-      ]);
+      const data = await getAdminData();
 
-      console.log('📊 Admin - Profiles response:', profilesRes);
-      console.log('📊 Admin - Profiles data:', profilesRes.data);
-      console.log('📊 Admin - Profiles error:', profilesRes.error);
-      console.log('📚 Admin - Courses response:', coursesRes);
-
-      if (profilesRes.error) {
-        console.error('❌ Profiles yükleme hatası:', profilesRes.error);
+      if (data.error) {
+        console.error('Admin data error:', data.error);
+        // Don't alert immediately on load to avoid spamming if key is missing, just log
+        return;
       }
 
-      if (coursesRes.error) {
-        console.error('❌ Courses yükleme hatası:', coursesRes.error);
+      if (data.users) {
+        setUsers(data.users as any); // Type casting for simplicity in this refactor
+        setStats(data.stats!);
       }
 
-      // Kullanıcıları formatla
-      const formattedUsers: User[] = (profilesRes.data || []).map(profile => ({
-        id: profile.id,
-        name: profile.name || profile.email?.split('@')[0] || 'Kullanıcı',
-        email: profile.email || '',
-        joinDate: new Date(profile.created_at).toLocaleDateString('tr-TR'),
-        lastActive: new Date(profile.last_sign_in_at || profile.created_at).toLocaleDateString('tr-TR'),
-        isPremium: profile.is_premium || false,
-        isAdmin: profile.role === 'admin'
-      }));
-
-      // Kursları formatla
-      const loadedCourses = coursesRes.data || [];
-
-      console.log('👥 Admin - Formatted users:', formattedUsers.length);
-      console.log('📚 Admin - Loaded courses:', loadedCourses.length);
-
-      setUsers(formattedUsers);
-      setCourses(loadedCourses);
-      
-      // İstatistikleri güncelle
-      setStats({
-        totalUsers: formattedUsers.length,
-        premiumUsers: formattedUsers.filter((u: User) => u.isPremium).length,
-        totalCourses: loadedCourses.length,
-        totalRevenue: formattedUsers.filter((u: User) => u.isPremium).length * 99
-      });
+      if (data.courses) {
+        setCourses(data.courses as any);
+      }
 
       console.log('✅ Admin - loadData tamamlandı!');
     } catch (error) {
@@ -454,12 +507,12 @@ export default function AdminDashboard() {
         lessons: course.lessons
       })
       .select();
-    
+
     if (error) {
       alert('Hata: ' + error.message);
       return;
     }
-    
+
     if (data) {
       setCourses([...courses, data[0]]);
     }
@@ -476,17 +529,17 @@ export default function AdminDashboard() {
 
   const deleteCourse = async (id: string) => {
     if (!confirm("Bu eğitimi silmek istediğinize emin misiniz?")) return;
-    
+
     const { error } = await supabase
       .from('courses')
       .delete()
       .eq('id', id);
-    
+
     if (error) {
       alert('Hata: ' + error.message);
       return;
     }
-    
+
     setCourses(courses.filter(c => c.id !== id));
   };
 
@@ -582,7 +635,7 @@ export default function AdminDashboard() {
 
   const deleteLesson = async (courseId: string, lessonId: string) => {
     if (!confirm("Bu dersi silmek istediğinize emin misiniz?")) return;
-    
+
     const course = courses.find(c => c.id === courseId);
     if (!course) return;
 
@@ -607,56 +660,69 @@ export default function AdminDashboard() {
     alert('✅ Ders silindi!');
   };
 
-  
-  const deleteUser = async (userId: string) => {
-    if (!confirm('⚠️ Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz?')) return;
-    
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
-    
+
+  const sendPasswordResetEmail = async (userEmail: string) => {
+    if (!confirm(`${userEmail} adresine şifre sıfırlama bağlantısı göndermek istediğinize emin misiniz?`)) return;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
     if (error) {
       alert('❌ Hata: ' + error.message);
       return;
     }
-    
-    alert('✅ Kullanıcı silindi!');
-    setEditingUser(null);
-    loadData();
+
+    alert(`✅ Şifre sıfırlama bağlantısı ${userEmail} adresine gönderildi!`);
   };
-  
+
+  const deleteUser = async (userId: string) => {
+    if (!confirm('⚠️ Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz?\n\nTüm verileri (profil, abonelik, dersler) silinecektir!')) return;
+
+    try {
+      const result = await deleteUserAction(userId);
+
+      if (result.error) {
+        alert('❌ Silme hatası: ' + result.error);
+        return;
+      }
+
+      alert('✅ Kullanıcı verileri silindi!');
+      setEditingUser(null);
+      loadData();
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('❌ Silme sırasında hata oluştu: ' + (err as Error).message);
+    }
+  };
+
   const saveUserEdit = async () => {
     if (!editingUser) return;
-    
-    // Supabase'de güncelle
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        name: userEditData.name,
-        is_premium: userEditData.isPremium,
-        role: userEditData.isAdmin ? 'admin' : 'user'
-      })
-      .eq('id', editingUser.id);
-    
-    if (error) {
-      alert('❌ Hata: ' + error.message);
+
+    const result = await updateUserAction(editingUser.id, {
+      name: userEditData.name,
+      isPremium: userEditData.isPremium,
+      isAdmin: userEditData.isAdmin
+    });
+
+    if (result.error) {
+      alert('❌ Hata: ' + result.error);
       return;
     }
-    
+
     // Local state'i güncelle
-    const updatedUsers = users.map(u => 
-      u.id === editingUser.id 
+    const updatedUsers = users.map(u =>
+      u.id === editingUser.id
         ? { ...u, name: userEditData.name, isPremium: userEditData.isPremium, isAdmin: userEditData.isAdmin }
         : u
     );
     setUsers(updatedUsers);
-    
+
     setEditingUser(null);
     alert('✅ Kullanıcı güncellendi!');
   };
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -664,7 +730,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
       <div className="max-w-7xl mx-auto">
-        
+
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
             🔒 Admin Dashboard
@@ -760,32 +826,30 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 text-gray-600">{user.email}</td>
                         <td className="px-6 py-4 text-gray-600 text-sm">{user.joinDate}</td>
                         <td className="px-6 py-4">
-                          <button 
+                          <button
                             onClick={() => toggleUserAdmin(user.id, (user as any).isAdmin || false)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold transition ${
-                              (user as any).isAdmin 
-                                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition ${(user as any).isAdmin
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
+                              }`}
                           >
                             {(user as any).isAdmin ? '🔑 Admin' : '👤 User'}
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          <button 
+                          <button
                             onClick={() => toggleUserPremium(user.id, user.isPremium)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold transition ${
-                              user.isPremium 
-                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition ${user.isPremium
+                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
+                              }`}
                           >
                             {user.isPremium ? '⭐ Premium' : '🆓 Free'}
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <button 
+                          <div className="flex gap-2 flex-wrap">
+                            <button
                               onClick={() => {
                                 setEditingUser(user);
                                 setUserEditData({
@@ -799,8 +863,14 @@ export default function AdminDashboard() {
                             >
                               ✏️ Düzenle
                             </button>
-                            <button 
-                              onClick={() => deleteUser(user.id)} 
+                            <button
+                              onClick={() => sendPasswordResetEmail(user.email)}
+                              className="px-3 py-1 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition"
+                            >
+                              🔑 Şifre Sıfırla
+                            </button>
+                            <button
+                              onClick={() => deleteUser(user.id)}
                               className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition"
                             >
                               🗑️ Sil
@@ -852,7 +922,7 @@ export default function AdminDashboard() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <select 
+                          <select
                             value={sub.plan_type}
                             onChange={(e) => changePlanType(sub.id, e.target.value as any)}
                             className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-purple-400 focus:outline-none font-semibold"
@@ -868,9 +938,11 @@ export default function AdminDashboard() {
                               {sub.is_unlimited ? '∞ Sınırsız' : sub.message_credits}
                             </span>
                             {!sub.is_unlimited && (
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 flex-wrap">
                                 <button onClick={() => addCredits(sub.id, 'message', 10)} className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold hover:bg-green-200">+10</button>
                                 <button onClick={() => addCredits(sub.id, 'message', 100)} className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold hover:bg-green-200">+100</button>
+                                <button onClick={() => addCustomCredits(sub.id, 'message')} className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs font-bold hover:bg-blue-200">✏️ Ekle</button>
+                                <button onClick={() => setCustomCredits(sub.id, 'message')} className="px-2 py-1 bg-purple-100 text-purple-600 rounded text-xs font-bold hover:bg-purple-200">🎯 Ayarla</button>
                               </div>
                             )}
                           </div>
@@ -881,24 +953,25 @@ export default function AdminDashboard() {
                               {sub.is_unlimited ? '∞ Sınırsız' : sub.calorie_credits}
                             </span>
                             {!sub.is_unlimited && (
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 flex-wrap">
                                 <button onClick={() => addCredits(sub.id, 'calorie', 5)} className="px-2 py-1 bg-orange-100 text-orange-600 rounded text-xs font-bold hover:bg-orange-200">+5</button>
                                 <button onClick={() => addCredits(sub.id, 'calorie', 30)} className="px-2 py-1 bg-orange-100 text-orange-600 rounded text-xs font-bold hover:bg-orange-200">+30</button>
+                                <button onClick={() => addCustomCredits(sub.id, 'calorie')} className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs font-bold hover:bg-blue-200">✏️ Ekle</button>
+                                <button onClick={() => setCustomCredits(sub.id, 'calorie')} className="px-2 py-1 bg-purple-100 text-purple-600 rounded text-xs font-bold hover:bg-purple-200">🎯 Ayarla</button>
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            sub.status === 'active' ? 'bg-green-100 text-green-600' :
-                            sub.status === 'expired' ? 'bg-red-100 text-red-600' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${sub.status === 'active' ? 'bg-green-100 text-green-600' :
+                              sub.status === 'expired' ? 'bg-red-100 text-red-600' :
+                                'bg-gray-100 text-gray-600'
+                            }`}>
                             {sub.status === 'active' ? '✅ Aktif' : sub.status === 'expired' ? '❌ Süresi Doldu' : '🚫 İptal'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <button 
+                          <button
                             onClick={() => openEditSubscription(sub)}
                             className="px-4 py-2 bg-blue-100 text-blue-600 rounded-lg font-semibold hover:bg-blue-200 transition"
                           >
@@ -919,7 +992,7 @@ export default function AdminDashboard() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl">
               <h3 className="text-2xl font-bold text-gray-800 mb-6">✏️ Abonelik Düzenle</h3>
-              
+
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Kullanıcı</label>
@@ -928,9 +1001,9 @@ export default function AdminDashboard() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Paket Türü</label>
-                  <select 
+                  <select
                     value={subscriptionEditData.plan_type}
-                    onChange={(e) => setSubscriptionEditData({...subscriptionEditData, plan_type: e.target.value as any})}
+                    onChange={(e) => setSubscriptionEditData({ ...subscriptionEditData, plan_type: e.target.value as any })}
                     className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
                   >
                     <option value="free">Free</option>
@@ -942,20 +1015,20 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Mesaj Kredisi</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={subscriptionEditData.message_credits}
-                      onChange={(e) => setSubscriptionEditData({...subscriptionEditData, message_credits: parseInt(e.target.value) || 0})}
+                      onChange={(e) => setSubscriptionEditData({ ...subscriptionEditData, message_credits: parseInt(e.target.value) || 0 })}
                       className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
                       disabled={subscriptionEditData.is_unlimited}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Kalori Kredisi</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={subscriptionEditData.calorie_credits}
-                      onChange={(e) => setSubscriptionEditData({...subscriptionEditData, calorie_credits: parseInt(e.target.value) || 0})}
+                      onChange={(e) => setSubscriptionEditData({ ...subscriptionEditData, calorie_credits: parseInt(e.target.value) || 0 })}
                       className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
                       disabled={subscriptionEditData.is_unlimited}
                     />
@@ -964,10 +1037,10 @@ export default function AdminDashboard() {
 
                 <div>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
+                    <input
                       type="checkbox"
                       checked={subscriptionEditData.is_unlimited}
-                      onChange={(e) => setSubscriptionEditData({...subscriptionEditData, is_unlimited: e.target.checked})}
+                      onChange={(e) => setSubscriptionEditData({ ...subscriptionEditData, is_unlimited: e.target.checked })}
                       className="w-5 h-5 text-purple-600 rounded"
                     />
                     <span className="text-sm font-semibold text-gray-700">Sınırsız Kredi</span>
@@ -976,9 +1049,9 @@ export default function AdminDashboard() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Durum</label>
-                  <select 
+                  <select
                     value={subscriptionEditData.status}
-                    onChange={(e) => setSubscriptionEditData({...subscriptionEditData, status: e.target.value as any})}
+                    onChange={(e) => setSubscriptionEditData({ ...subscriptionEditData, status: e.target.value as any })}
                     className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
                   >
                     <option value="active">Aktif</option>
@@ -989,13 +1062,13 @@ export default function AdminDashboard() {
               </div>
 
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={updateSubscription}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition"
                 >
                   ✅ Kaydet
                 </button>
-                <button 
+                <button
                   onClick={() => setEditingSubscription(null)}
                   className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition"
                 >
@@ -1017,25 +1090,25 @@ export default function AdminDashboard() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Başlık</label>
-                    <input type="text" value={newCourse.title} onChange={(e) => setNewCourse({...newCourse, title: e.target.value})} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Eğitim başlığı" />
+                    <input type="text" value={newCourse.title} onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Eğitim başlığı" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Açıklama</label>
-                    <textarea value={newCourse.description} onChange={(e) => setNewCourse({...newCourse, description: e.target.value})} rows={3} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none resize-none" placeholder="Eğitim hakkında kısa bilgi" />
+                    <textarea value={newCourse.description} onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })} rows={3} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none resize-none" placeholder="Eğitim hakkında kısa bilgi" />
                   </div>
                   {/* Dersler Bölümü */}
                   <div className="border-t-2 border-gray-200 pt-6 mt-6">
                     <h4 className="text-xl font-bold text-gray-800 mb-4">📚 Dersler</h4>
-                    
+
                     {/* Ders Ekleme */}
                     <div className="bg-gray-50 rounded-xl p-4 mb-4">
                       <div className="space-y-3">
                         <div>
-                          <input type="text" value={tempLesson.title} onChange={(e) => setTempLesson({...tempLesson, title: e.target.value})} className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Ders başlığı" />
+                          <input type="text" value={tempLesson.title} onChange={(e) => setTempLesson({ ...tempLesson, title: e.target.value })} className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Ders başlığı" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <input type="url" value={tempLesson.videoUrl} onChange={(e) => setTempLesson({...tempLesson, videoUrl: e.target.value})} className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="YouTube URL" />
-                          <input type="text" value={tempLesson.duration} onChange={(e) => setTempLesson({...tempLesson, duration: e.target.value})} className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Süre (örn: 15 dk)" />
+                          <input type="url" value={tempLesson.videoUrl} onChange={(e) => setTempLesson({ ...tempLesson, videoUrl: e.target.value })} className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="YouTube URL" />
+                          <input type="text" value={tempLesson.duration} onChange={(e) => setTempLesson({ ...tempLesson, duration: e.target.value })} className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Süre (örn: 15 dk)" />
                         </div>
                         <button onClick={addTempLesson} className="w-full py-2 bg-indigo-500 text-white rounded-lg font-semibold hover:bg-indigo-600 transition">➕ Ders Ekle</button>
                       </div>
@@ -1110,16 +1183,16 @@ export default function AdminDashboard() {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-2">Ders Başlığı</label>
-                          <input type="text" value={newLesson.title} onChange={(e) => setNewLesson({...newLesson, title: e.target.value})} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Örn: Giriş ve Tanışma" />
+                          <input type="text" value={newLesson.title} onChange={(e) => setNewLesson({ ...newLesson, title: e.target.value })} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Örn: Giriş ve Tanışma" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Video URL</label>
-                            <input type="url" value={newLesson.videoUrl} onChange={(e) => setNewLesson({...newLesson, videoUrl: e.target.value})} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="https://youtube.com/..." />
+                            <input type="url" value={newLesson.videoUrl} onChange={(e) => setNewLesson({ ...newLesson, videoUrl: e.target.value })} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="https://youtube.com/..." />
                           </div>
                           <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Süre</label>
-                            <input type="text" value={newLesson.duration} onChange={(e) => setNewLesson({...newLesson, duration: e.target.value})} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Örn: 15 dk" />
+                            <input type="text" value={newLesson.duration} onChange={(e) => setNewLesson({ ...newLesson, duration: e.target.value })} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" placeholder="Örn: 15 dk" />
                           </div>
                         </div>
                         <div className="flex gap-4">
@@ -1176,23 +1249,23 @@ export default function AdminDashboard() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Site Adı</label>
-                    <input type="text" value={settings.siteName} onChange={(e) => setSettings({...settings, siteName: e.target.value})} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" />
+                    <input type="text" value={settings.siteName} onChange={(e) => setSettings({ ...settings, siteName: e.target.value })} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Site Açıklaması</label>
-                    <textarea value={settings.siteDescription} onChange={(e) => setSettings({...settings, siteDescription: e.target.value})} rows={2} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none resize-none" />
+                    <textarea value={settings.siteDescription} onChange={(e) => setSettings({ ...settings, siteDescription: e.target.value })} rows={2} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none resize-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Premium Fiyat ($)</label>
-                    <input type="number" value={settings.premiumPrice} onChange={(e) => setSettings({...settings, premiumPrice: parseInt(e.target.value)})} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" />
+                    <input type="number" value={settings.premiumPrice} onChange={(e) => setSettings({ ...settings, premiumPrice: parseInt(e.target.value) })} className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={settings.maintenanceMode} onChange={(e) => setSettings({...settings, maintenanceMode: e.target.checked})} className="w-5 h-5" />
+                      <input type="checkbox" checked={settings.maintenanceMode} onChange={(e) => setSettings({ ...settings, maintenanceMode: e.target.checked })} className="w-5 h-5" />
                       <span className="text-sm font-semibold text-gray-700">Bakım Modu</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={settings.emailNotifications} onChange={(e) => setSettings({...settings, emailNotifications: e.target.checked})} className="w-5 h-5" />
+                      <input type="checkbox" checked={settings.emailNotifications} onChange={(e) => setSettings({ ...settings, emailNotifications: e.target.checked })} className="w-5 h-5" />
                       <span className="text-sm font-semibold text-gray-700">Email Bildirimleri</span>
                     </label>
                   </div>
@@ -1221,20 +1294,20 @@ export default function AdminDashboard() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Ad Soyad</label>
-                      <input 
-                        type="text" 
-                        value={userEditData.name} 
-                        onChange={(e) => setUserEditData({...userEditData, name: e.target.value})} 
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none" 
+                      <input
+                        type="text"
+                        value={userEditData.name}
+                        onChange={(e) => setUserEditData({ ...userEditData, name: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                      <input 
-                        type="email" 
-                        value={userEditData.email} 
+                      <input
+                        type="email"
+                        value={userEditData.email}
                         disabled
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 cursor-not-allowed" 
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 cursor-not-allowed"
                       />
                       <p className="text-xs text-gray-500 mt-1">Email değiştirilemez</p>
                     </div>
@@ -1245,11 +1318,11 @@ export default function AdminDashboard() {
                 <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6">
                   <h3 className="text-lg font-bold text-gray-800 mb-4">⭐ Premium Durumu</h3>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={userEditData.isPremium} 
-                      onChange={(e) => setUserEditData({...userEditData, isPremium: e.target.checked})} 
-                      className="w-6 h-6 rounded" 
+                    <input
+                      type="checkbox"
+                      checked={userEditData.isPremium}
+                      onChange={(e) => setUserEditData({ ...userEditData, isPremium: e.target.checked })}
+                      className="w-6 h-6 rounded"
                     />
                     <span className="text-sm font-semibold text-gray-700">
                       {userEditData.isPremium ? '✅ Premium Üye' : '🆓 Ücretsiz Üye'}
@@ -1261,11 +1334,11 @@ export default function AdminDashboard() {
                 <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6">
                   <h3 className="text-lg font-bold text-gray-800 mb-4">🔑 Admin Durumu</h3>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={userEditData.isAdmin} 
-                      onChange={(e) => setUserEditData({...userEditData, isAdmin: e.target.checked})} 
-                      className="w-6 h-6 rounded" 
+                    <input
+                      type="checkbox"
+                      checked={userEditData.isAdmin}
+                      onChange={(e) => setUserEditData({ ...userEditData, isAdmin: e.target.checked })}
+                      className="w-6 h-6 rounded"
                     />
                     <span className="text-sm font-semibold text-gray-700">
                       {userEditData.isAdmin ? '✅ Admin Yetkisi Var' : '❌ Admin Yetkisi Yok'}
@@ -1292,24 +1365,24 @@ export default function AdminDashboard() {
                 {/* Butonlar */}
                 <div className="space-y-3 pt-4">
                   <div className="flex gap-4">
-                    <button 
-                      onClick={saveUserEdit} 
+                    <button
+                      onClick={saveUserEdit}
                       className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition"
                     >
                       ✅ Değişiklikleri Kaydet
                     </button>
-                    <button 
-                      onClick={() => setEditingUser(null)} 
+                    <button
+                      onClick={() => setEditingUser(null)}
                       className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition"
                     >
                       ❌ İptal
                     </button>
                   </div>
-                  
+
                   {/* Tehlikeli Alan */}
                   <div className="border-t-2 border-red-200 pt-4">
-                    <button 
-                      onClick={() => deleteUser(editingUser.id)} 
+                    <button
+                      onClick={() => deleteUser(editingUser.id)}
                       className="w-full py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition"
                     >
                       🗑️ Kullanıcıyı Sil
